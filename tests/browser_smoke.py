@@ -82,6 +82,20 @@ with tempfile.TemporaryDirectory() as directory:
             page.locator('#budget').fill('20000')
             page.locator('#go').click()
             expect(page.locator('#stop')).to_be_visible()
+            # Stopping is destructive, so it confirms first and keeps the research.
+            page.locator('#stop').click()
+            expect(page.locator('#stop-confirm')).to_be_visible()
+            page.locator('#stop-cancel').click()
+            expect(page.locator('#stop-confirm')).to_be_hidden()
+            assert engine.running, 'cancelling the confirm must not stop the session'
+            # A checked safety toggle must never read as OFF while the session runs.
+            expect(page.locator('#require-research')).to_be_checked()
+            expect(page.locator('#require-research')).to_be_enabled()
+            expect(page.locator('#budget')).to_be_disabled()
+            expect(page.locator('#capital-locked')).to_be_visible()
+            # Tabs announce themselves properly.
+            assert page.locator('.tabs [role=tab]').count() == 8
+            expect(page.locator('[data-tab="overview"]')).to_have_attribute('aria-selected', 'true')
             engine.scan()
             expect(page.locator('.idea').first).to_be_visible(timeout=10000)
             expect(page.locator('#chart svg')).to_be_visible()
@@ -235,6 +249,7 @@ with tempfile.TemporaryDirectory() as directory:
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Mobile overflow'
             page.screenshot(path='data/dashboard-mobile.png', full_page=True)
             page.locator('#stop').click()
+            page.locator('#stop-yes').click()
             expect(page.locator('#go')).to_be_visible()
             expect(page.locator('.idea')).to_have_count(0)
             assert not errors, errors

@@ -10,6 +10,35 @@ live API, and how many AI requests it cost.
 
 ## Unreleased
 
+### UX review fixes
+- **Stopping no longer destroys anything and asks first.** Stop is a bordered danger button with a
+  confirm step, no longer a full-width primary in the same slot as Start. `start()` also stopped
+  clearing research: it is timestamped evidence and the freshness gate already refuses stale reports,
+  so a stray Stop/Go can no longer throw away paid AI work. Next-session plans render from the last
+  snapshot while stopped instead of blanking.
+- **Checked settings no longer read as OFF.** Dimming the whole fieldset made "Require sourced
+  research" — a safety setting — look disabled and unchecked while running. Only capital fields lock
+  now, checked boxes keep full contrast, and a note explains what is locked and why.
+- **Research settings retune live.** `/api/settings/research` applies research, require_research,
+  cadence and both caps without stopping the session, which is when you actually want to change them.
+- **The status banner tells the truth.** It was a constant green string through dead feeds and a
+  stopped session. It now reports stopped / starting / no fresh data / partial / live, names the
+  unavailable categories, and colours itself accordingly.
+- **One budget unit.** The stat tile shows requests left today, with session usage as a sub-label.
+  Removed the duplicate count-up in the health strip and the duplicate count-down in the sidebar;
+  Idea check now also reads as remaining.
+- **Research evidence groups by usability.** Sources that feed live signals come first; the rest
+  collapse behind a single count instead of repeating an identical disclaimer on every card.
+- **My positions has an exit.** Each position offers "Log a closing sale" (pre-fills the form, since
+  only you know the fill price) and each logged fill can be removed. Removing a purchase under a
+  later sale is refused rather than producing a negative holding.
+- Tabs are a real tablist: `role="tab"`, `aria-selected`, `aria-controls`, roving tabindex and arrow
+  key navigation. "Go" is now "Start session", matching "Stop session".
+- Paper journal badge explains that it counts open positions; the win rate moved out of the export
+  link label into the journal stats with an honest sample-size caveat.
+- Checked the reported dark-mode contrast failures and could not reproduce any: all eight tabs pass
+  WCAG AA. The named worst case, the active mode pill, measures 14.19:1.
+
 ### Themes and UI
 - Four themes, each with a light and a dark mode: Daylight (the original green), Slate, Ember and
   Mono. A theme declares about a dozen base values and the rest derive with color-mix, so adding one

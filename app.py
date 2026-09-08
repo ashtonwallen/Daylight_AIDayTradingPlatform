@@ -54,6 +54,12 @@ DEFAULT = {'budget': 10000, 'risk_pct': 1, 'loss_limit_pct': 3, 'mode': 'live',
 # pinned while a position is open; everything else is operational and may change mid-position.
 CAPITAL_SETTINGS = ('budget', 'risk_pct', 'loss_limit_pct', 'max_position_pct', 'mode')
 
+# Settings that may be retuned while the session runs. These change what research is requested and
+# what evidence a live idea needs, which is exactly what you want to adjust while watching it work.
+# They never alter how an existing position was sized, so no restart is required.
+LIVE_SETTINGS = ('research', 'require_research', 'research_interval', 'research_calls',
+                 'daily_ai_limit', 'long_term_research')
+
 
 def validate(data):
     if not isinstance(data, dict):
@@ -390,7 +396,9 @@ class Engine(PositionsMixin, ChatMixin, ChartAnalysisMixin):
                 'outlook': self.outlook,
                 'thesis_report': self.thesis_report,
                 'changes': self.changes.events,
-                'next_session_ideas': build_plans(self.snapshot or {},self.config,self.reports,now()) if self.running else [],
+                # Built from the last snapshot even when stopped: these are conditional plans for the
+                # next open, so stopping the scanner is no reason to throw them away.
+                'next_session_ideas': build_plans(self.snapshot or {},self.config,self.reports,now()),
                 'outlook_history': self.outlook_history,
                 'discoveries': self.discovery_view(),
                 'data_categories': self.data_categories(),
@@ -423,10 +431,13 @@ class Engine(PositionsMixin, ChatMixin, ChartAnalysisMixin):
                 db.execute("INSERT OR REPLACE INTO settings VALUES ('session',?)", (json.dumps(config),))
             self.running = True
             self.generation += 1
-            self.ideas, self.analyses, self.rejected, self.reports, self.errors = [], [], [], [], []
+            # Per-scan results are rebuilt immediately, but research cost real AI requests and is
+            # timestamped evidence: the freshness gate already refuses anything stale, so keeping it
+            # across a restart is safe and stops a stray Stop/Go from destroying paid work.
+            self.ideas, self.analyses, self.rejected, self.errors = [], [], [], []
             self.snapshot = None
             self.calls_used, self.last_research = 0, 0
-            self.long_reports, self.last_long_research = [], 0
+            self.last_long_research = 0
             self.news_analysis = {}
             self.review_calls = 0
             self.idea_review = {'status': 'idle'}
@@ -710,6 +721,23 @@ class Engine(PositionsMixin, ChatMixin, ChartAnalysisMixin):
             self.config = validate(dict(self.config, **{k: data[k] for k in ('long_risk', 'long_months', 'long_focus') if k in data}))
             with self.db() as db:
                 db.execute("INSERT OR REPLACE INTO settings VALUES ('session',?)", (json.dumps(self.config),))
+
+    def update_live_settings(self, data):
+        """Retune research settings without stopping the session."""
+        if not isinstance(data, dict): raise ValueError('Expected a settings object.')
+        changes = {k: v for k, v in data.items() if k in LIVE_SETTINGS}
+        if not changes: raise ValueError('No adjustable research settings were supplied.')
+        with self.lock:
+            config = validate(dict(self.config, **changes))
+            previous = {k: self.config[k] for k in changes}
+            self.config = config
+            with self.db() as db:
+                db.execute("INSERT OR REPLACE INTO settings VALUES ('session',?)", (json.dumps(config),))
+            if not config['long_term_research']:
+                self.long_reports = []
+            described = ', '.join(f'{k} {previous[k]} → {config[k]}' for k in sorted(changes) if previous[k] != config[k])
+            self.trace('Session', 'idle', 'Research settings updated' + (f': {described}.' if described else ' with no change.'))
+            self.wake.set()
 
     def set_long_term_research(self, enabled):
         if type(enabled) is not bool: raise ValueError('Long-term research must be true or false.')
@@ -1089,6 +1117,10 @@ def handler_for(engine):
                     return
                 elif self.path == '/api/ai/pause':
                     engine.set_ai_paused(data.get('paused'))
+                elif self.path == '/api/settings/research':
+                    engine.update_live_settings(data)
+                elif self.path == '/api/fills/delete':
+                    engine.delete_fill(data.get('id'))
                 elif self.path == '/api/fills/preview':
                     engine.request_fill_preview(data.get('text'))
                 elif self.path == '/api/fills':

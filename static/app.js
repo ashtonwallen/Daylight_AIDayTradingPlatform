@@ -115,6 +115,27 @@ async function refresh() {
 }
 
 // ---------- Session form ----------
+// Locked while running: these sized any open position. Everything else can be retuned live.
+const CAPITAL_FIELDS = ['#budget', '#risk', '#loss', '#max-position', '#symbols'];
+const LIVE_FIELDS = ['#research', '#require-research', '#research-interval', '#research-calls', '#daily-ai-limit'];
+function readLiveSettings() {
+  return {research:$('#research').checked, require_research:$('#require-research').checked,
+          research_interval:Number($('#research-interval').value), research_calls:Number($('#research-calls').value),
+          daily_ai_limit:Number($('#daily-ai-limit').value)};
+}
+// While a session runs these apply immediately; while stopped they are just form state for Start.
+let liveSettingsTimer = null;
+function applyLiveSettings() {
+  budgetPreview();
+  if (!state?.running) return;
+  clearTimeout(liveSettingsTimer);
+  liveSettingsTimer = setTimeout(async () => {
+    try { await post('/api/settings/research', readLiveSettings()); toast('Research settings updated. The session keeps running.'); }
+    catch (err) { toast(err.message); if (state) fillConfig(state.config); }
+  }, 700);
+}
+LIVE_FIELDS.forEach(id => $(id).addEventListener('change', applyLiveSettings));
+
 function readConfig() {
   return {mode:'live', budget:Number($('#budget').value), risk_pct:Number($('#risk').value), loss_limit_pct:Number($('#loss').value),
     max_position_pct:Number($('#max-position').value),
@@ -166,7 +187,6 @@ function budgetPreview() {
   if (remaining < wanted) note = `Only ${remaining} requests are left today, but a full session at this cadence wants ${wanted}. Slow the cadence or raise the daily cap.`;
   patch($('#budget-preview'), `<div><span>Full session at this cadence</span><b>${wanted} requests</b></div>
     <div><span>Session cap covers</span><b>${hours.toFixed(1)} hours</b></div>
-    <div><span>Left today</span><b>${remaining} of ${dailyCap}</b></div>
     ${note ? `<span class="note">${esc(note)}</span>` : ''}`);
 }
 ['#research-interval', '#research-calls', '#daily-ai-limit'].forEach(id => $(id).addEventListener('input', budgetPreview));
@@ -185,7 +205,17 @@ $('#session-form').addEventListener('submit', async e => {
   e.preventDefault(); $('#form-error').textContent = ''; $('#go').disabled = true;
   try { await post('/api/start', readConfig()); } catch (err) { $('#form-error').textContent = err.message; } finally { $('#go').disabled = false; }
 });
-$('#stop').onclick = () => post('/api/stop').catch(e => toast(e.message));
+// Stopping withdraws live ideas, so it asks first. Research, plans, the journal and logged
+// positions all survive a stop, and the confirmation says so.
+$('#stop').onclick = () => { $('#stop-confirm').hidden = false; $('#stop-yes').focus(); };
+$('#stop-cancel').onclick = () => { $('#stop-confirm').hidden = true; $('#stop').focus(); };
+$('#stop-yes').onclick = async () => {
+  $('#stop-yes').disabled = true;
+  try { await post('/api/stop'); $('#stop-confirm').hidden = true; }
+  catch (e) { toast(e.message); }
+  finally { $('#stop-yes').disabled = false; }
+};
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#stop-confirm').hidden) $('#stop-cancel').click(); });
 $('#refresh-market').onclick = async () => {
   $('#refresh-market').disabled = true;
   try { await post('/api/market/refresh'); toast('Market refresh requested. No AI requests.'); }
@@ -223,10 +253,26 @@ function renderChat(s) {
 }
 function showTab(name) {
   if (!$(`[data-tab="${name}"]`)) name = 'overview';
-  $$('[data-tab]').forEach(x => x.classList.toggle('active', x.dataset.tab === name));
+  $$('[data-tab]').forEach(x => {
+    const active = x.dataset.tab === name;
+    x.classList.toggle('active', active);
+    // Without these a screen reader hears eight unrelated buttons and no current view.
+    x.setAttribute('aria-selected', String(active));
+    x.setAttribute('tabindex', active ? '0' : '-1');
+  });
   $$('.tab-content').forEach(x => x.hidden = x.id !== name);
   store.set('daylight-tab', name);
 }
+// Arrow keys move between tabs, which is what the tab role promises.
+$('.tabs').addEventListener('keydown', e => {
+  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+  const tabs = $$('[data-tab]'), current = tabs.findIndex(t => t.dataset.tab === store.get('daylight-tab', 'overview'));
+  const next = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1
+    : (current + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+  e.preventDefault();
+  showTab(tabs[next].dataset.tab);
+  tabs[next].focus();
+});
 $$('[data-tab]').forEach(b => b.onclick = () => showTab(b.dataset.tab));
 showTab(store.get('daylight-tab', 'overview'));
 
@@ -234,29 +280,71 @@ showTab(store.get('daylight-tab', 'overview'));
 function renderHeader(s) {
   const c = s.config;
   if (firstRender || s.running) { fillConfig(c); firstRender = false; }
-  $('#settings').disabled = s.running; $('#go').hidden = s.running; $('#stop').hidden = !s.running;
+  $('#go').hidden = s.running;
+  $('#stop-wrap').hidden = !s.running;
+  if (!s.running) $('#stop-confirm').hidden = true;
   $('#go').disabled = s.scanning || s.researching;
+  // Only the settings an open position was sized against lock while running. Research settings stay
+  // editable, because those are exactly what you want to tune while watching it work.
+  CAPITAL_FIELDS.forEach(id => { const el = $(id); if (el) el.disabled = s.running; });
+  $('#capital-locked').hidden = !s.running;
   setText($('#status'), s.running ? (s.scanning ? 'Scanning the market…' : 'Session running') : 'Session stopped');
   $('#refresh-market').disabled = !s.running || s.scanning || s.market_refresh_requested;
   setText($('#refresh-market'), s.scanning || s.market_refresh_requested ? 'Refreshing market data…' : 'Refresh market data');
   $('#refresh-market').title = !s.running ? 'Start a session to refresh market data.' : 'Refresh quotes, candles, headlines and position marks. Uses existing research; no AI requests.';
   $('#status-dot').classList.toggle('live', s.running);
   setText($('#available'), money(s.available)); setText($('#risk-left'), money(s.risk_left));
-  setText($('#last-scan'), time(s.last_scan)); setText($('#calls'), `${s.calls_used} / ${c.research_calls}`);
+  setText($('#last-scan'), time(s.last_scan));
+  // One unit everywhere: how many requests remain today. Session and per-button costs are secondary.
+  const usage = s.ai_usage || {requests:0, limit:0};
+  const remaining = Math.max(0, usage.limit - usage.requests);
+  setText($('#calls'), String(remaining));
+  setText($('#calls-note'), `of ${usage.limit} today · ${s.calls_used} used this session`);
   setText($('#connection'), 'LIVE DATA');
-  setText($('#mode-banner'), `LIVE MARKET DATA · ${s.connections.stock_feed.toUpperCase()} stocks / ${s.connections.option_feed.toUpperCase()} options / Alpaca Bitcoin${!c.require_research ? ' · technical-only ideas permitted' : ''}`);
+  renderStatusBanner(s);
   setText($('#alpaca-status'), s.connections.alpaca ? 'Key configured' : 'Not configured');
   setText($('#ai-status'), s.ai_settings?.configured ? `${s.ai_settings.label} · ${s.ai_settings.model}` : 'Not configured');
   const feeds = s.feed_health || [], fresh = feeds.filter(f => f.status === 'fresh').length;
   setText($('#feed-summary'), `${fresh} / ${feeds.length} feeds with fresh quotes · ${s.running ? 'monitoring' : 'session stopped'}`);
   setText($('#scan-cadence'), s.running ? `Scans ${interval(s.scan_interval || 60)}` : '');
-  setText($('#daily-usage'), `Daily AI allowance: ${s.ai_usage?.requests || 0} / ${s.ai_usage?.limit || 120} requests (UTC)`);
+  setText($('#daily-usage'), s.ai_paused ? 'AI paused' : `Budget resets midnight UTC`);
   // AI pause
   setText($('#pause-ai'), s.ai_paused ? 'Resume AI' : 'Pause all AI');
   $('#pause-ai').classList.toggle('paused', !!s.ai_paused);
   $('#ai-pause-note').hidden = !s.ai_paused;
   setText($('#ai-pause-note'), 'AI paused · no new AI requests. Market scans and manual logging continue.' + (s.ai_inflight ? ' Already-sent requests are still finishing and may be billed.' : ''));
 }
+
+// The most prominent element on the page has to be the most truthful. It used to be a constant
+// green string that stayed green through dead feeds and a stopped session.
+function renderStatusBanner(s) {
+  const banner = $('#mode-banner'), feeds = s.feed_health || [];
+  const fresh = feeds.filter(f => f.status === 'fresh').length;
+  const feedNote = `${s.connections.stock_feed.toUpperCase()} stocks / ${s.connections.option_feed.toUpperCase()} options / Alpaca Bitcoin`;
+  const broken = Object.values(s.data_categories || {})
+    .filter(cat => cat.status === 'unavailable').map(cat => cat.label);
+  let level, text;
+  if (!s.running) {
+    level = 'idle';
+    text = `Session stopped · nothing is being scanned · ${feedNote}`;
+  } else if (!s.last_scan) {
+    level = 'idle';
+    text = `Session starting · waiting for the first scan · ${feedNote}`;
+  } else if (!feeds.length || !fresh) {
+    level = 'bad';
+    text = `No fresh market data · ${broken.length ? broken.join(', ') + ' unavailable' : 'nothing is reporting'} · ideas are withheld`;
+  } else if (fresh < feeds.length || broken.length) {
+    level = 'warn';
+    text = `Partial data · ${fresh} of ${feeds.length} feeds fresh${broken.length ? ' · ' + broken.join(', ') + ' unavailable' : ''}`;
+  } else {
+    level = 'live';
+    text = `Live market data · ${fresh} of ${feeds.length} feeds fresh · ${feedNote}`;
+  }
+  if (s.running && !c_requireResearch(s)) text += ' · technical-only ideas permitted';
+  banner.className = 'banner ' + level;
+  setText(banner, text);
+}
+const c_requireResearch = s => s.config.require_research;
 
 // ---------- Market desk ----------
 const REASONS = [
@@ -718,7 +806,7 @@ function renderIdeaCheck(s) {
   }
   if (ideaMode === 'live') {
     const review = s.idea_review || {status:'idle'}, blocker = liveCheckBlocker(s);
-    setText($('#review-count'), `${s.review_calls || 0} / 10 checks this session`);
+    setText($('#review-count'), `${Math.max(0, 10 - (s.review_calls || 0))} live checks left this session`);
     button.disabled = review.status === 'running' || !!blocker;
     button.firstChild.textContent = (review.status === 'running' ? m.running : m.button) + ' ';
     button.title = blocker || '';
@@ -803,7 +891,7 @@ function evidenceCard(e) {
     <span class="meta-item ${published ? '' : 'warn'}"><span class="meta-key">Published</span><b>${published ? esc(published) : 'Unverified'}</b></span>
     ${e.event_risk ? '<span class="meta-item warn"><span class="meta-key">Flag</span><b>Event risk</b></span>' : ''}</div>
     <a href="${url(e.url)}" target="_blank" rel="noopener noreferrer">${esc(e.title)} ↗</a><p>${esc(e.summary)}</p>
-    ${!e.fresh ? '<p class="hint">Shown for context only: the publication time could not be verified as within the last 24 hours, so this source does not feed live signals.</p>' : ''}</article>`;
+</article>`;
 }
 function renderResearch(s) {
   const researchBlocker = s.ai_paused ? 'AI is paused.' : !s.running ? 'Start a session first.' : !s.config.research ? 'AI research is disabled for this session.' : !s.ai_settings?.web_research ? 'Requires a provider with web search.' : s.calls_used + 3 > s.config.research_calls ? 'This session’s AI request cap is reached.' : null;
@@ -825,7 +913,15 @@ function renderResearch(s) {
   if (patch(filter, '<option value="">All symbols</option>' + symbols.map(x => `<option value="${esc(x)}">${x === 'MARKET' ? 'Market-wide' : esc(x)}</option>`).join('')))
     filter.value = symbols.includes(current) ? current : '';
   const shown = filter.value ? evidence.filter(e => e.symbol === filter.value) : evidence;
-  patch($('#evidence'), shown.length ? shown.map(evidenceCard).join('') : evidence.length ? '<p class="hint">No evidence for this symbol in the current reports.</p>' : '<div class="empty"><h3>No sourced evidence yet.</h3><p>Configure an AI provider and start a session with research enabled.<br>Unavailable social channels will be reported explicitly.</p></div>');
+  // Sources that feed live signals come first. The rest carried an identical disclaimer per card,
+  // which buried the few that matter, so they collapse behind one count instead.
+  const verified = shown.filter(e => e.fresh), unverified = shown.filter(e => !e.fresh);
+  patch($('#evidence'), shown.length ? `
+    ${verified.length ? verified.map(evidenceCard).join('')
+      : '<p class="hint">No source in this set has a verifiable publication time within the last 24 hours, so none can feed a live signal.</p>'}
+    ${unverified.length ? `<details class="unverified"><summary>${unverified.length} source${unverified.length === 1 ? '' : 's'} shown for context only · publication time not verified within 24 hours, so ${unverified.length === 1 ? 'it does' : 'they do'} not feed live signals</summary>${unverified.map(evidenceCard).join('')}</details>` : ''}`
+    : evidence.length ? '<p class="hint">No evidence for this symbol in the current reports.</p>'
+    : '<div class="empty"><h3>No sourced evidence yet.</h3><p>Configure an AI provider and start a session with research enabled.<br>Unavailable social channels will be reported explicitly.</p></div>');
   renderLongResearch(s);
   renderNews(s);
 }
@@ -940,13 +1036,13 @@ document.addEventListener('click', async e => {
 function renderJournal(s) {
   const j = s.journal_summary || {closed:0, wins:0, net:0, open:0, reserved:0, unrealized:null};
   setText($('#trade-count'), String(j.open || 0));
-  patch($('#journal-summary'), `<div><span>Open paper positions</span><strong>${j.open || 0}</strong></div><div><span>Capital reserved</span><strong>${money(j.reserved || 0)}</strong></div><div><span>Open estimated P/L</span><strong class="${j.unrealized === null ? '' : pnlClass(j.unrealized)}">${j.unrealized === null ? (j.open ? 'awaiting fresh quotes' : '—') : signedMoney(j.unrealized)}</strong></div><div><span>Closed estimates · realized</span><strong class="${pnlClass(j.net)}">${j.closed} · ${signedMoney(j.net)}</strong></div>`);
+  $('[data-tab="journal"]').title = `${j.open || 0} open paper position${j.open === 1 ? '' : 's'} · ${j.closed || 0} closed`;
+  patch($('#journal-summary'), `<div><span>Open paper positions</span><strong>${j.open || 0}</strong></div><div><span>Capital reserved</span><strong>${money(j.reserved || 0)}</strong></div><div><span>Open estimated P/L</span><strong class="${j.unrealized === null ? '' : pnlClass(j.unrealized)}">${j.unrealized === null ? (j.open ? 'awaiting fresh quotes' : '—') : signedMoney(j.unrealized)}</strong></div><div><span>Closed estimates · realized</span><strong class="${pnlClass(j.net)}">${j.closed} · ${signedMoney(j.net)}</strong><small class="stat-note">${j.closed ? `${j.wins} of ${j.closed} positive — too small a sample to mean anything` : 'No closed estimates yet'}</small></div>`);
   patch($('#trades'), s.trades.length ? s.trades.map(t => `<article class="trade"><div class="trade-head"><div><strong>${esc(t.symbol)}</strong> <span class="pill">${esc(t.status.toUpperCase())}${t.asset === 'option' ? ' · OPTION' : ''}</span></div>${t.status === 'open' ? `<button class="secondary" data-close="${esc(t.id)}">Close paper estimate</button>` : ''}</div>
     <p class="hint">${esc(t.quantity)} × ${money(t.entry)} ${t.asset === 'option' ? '× 100' : ''} · capital ${money(t.notional)} · risk reserved ${money(t.risk)} · stop ${money(t.stop)} · target ${money(t.target)}<br>Opened ${esc(new Date(t.opened_at).toLocaleString())}${t.closed_at ? ' · closed ' + esc(new Date(t.closed_at).toLocaleString()) : ''}</p>
     <p>${t.status === 'closed' ? `Estimated P/L <span class="pnl ${pnlClass(t.pnl)}">${signedMoney(t.pnl)}</span> · exit ${money(t.exit)}` : `${esc(t.mark_status)} · ${t.marked_at && Date.now() - Date.parse(t.marked_at) < 45000 ? 'estimated open P/L <span class="pnl ' + pnlClass(t.unrealized) + '">' + signedMoney(t.unrealized) + '</span> at ' + money(t.mark) : 'fresh valuation unavailable'}`}</p></article>`).join('')
     : '<div class="empty"><h3>No paper ideas are being tracked.</h3><p>Select Track on paper on an idea to monitor its hypothetical outcome.</p></div>');
-  const wins = j.closed ? ` · ${(j.wins / j.closed * 100).toFixed(0)}% positive` : '';
-  setText($('#export'), `Export research & journal${wins} ↗`);
+  setText($('#export'), 'Export research & journal ↗');
 }
 $('#export').onclick = async () => {
   try {
@@ -969,6 +1065,31 @@ $('#fill-form').onsubmit = async e => {
   try { await post('/api/fills', {fill, request_id:fillSubmission}); fillSubmission = crypto.randomUUID(); $('#fill-form').reset(); toast('Reported fill saved. No brokerage order sent.'); }
   catch (err) { $('#fill-error').textContent = err.message; } finally { $('#save-fill').disabled = false; }
 };
+// A journal you can only append to gets abandoned. Closing means logging the sale you actually
+// made, so the form is pre-filled rather than a price being invented for you.
+document.addEventListener('click', async e => {
+  const closeBtn = e.target.closest('[data-close-position]');
+  if (closeBtn) {
+    const position = (state?.manual_positions || []).find(p => p.symbol === closeBtn.dataset.closePosition);
+    if (!position) return;
+    $('#fill-asset').value = position.asset;
+    $('#fill-side').value = 'sell';
+    $('#fill-symbol').value = position.symbol;
+    $('#fill-quantity').value = position.quantity;
+    $('#fill-price').value = '';
+    $('#fill-stop').value = '';
+    setText($('#translate-message'), `Enter the price you actually sold ${position.symbol} at, then confirm. Nothing is sent to a broker.`);
+    $('#fill-form').scrollIntoView({behavior:'smooth', block:'center'});
+    $('#fill-price').focus();
+    return;
+  }
+  const removeBtn = e.target.closest('[data-remove-fill]');
+  if (!removeBtn) return;
+  removeBtn.disabled = true;
+  try { await post('/api/fills/delete', {id:removeBtn.dataset.removeFill}); toast('Logged fill removed.'); }
+  catch (err) { toast(err.message); removeBtn.disabled = false; }
+});
+
 function renderPositions(s) {
   $('#auto-positions').checked = !!s.config.auto_position_review;
   $('#review-positions').disabled = s.ai_paused || s.position_review?.status === 'running';
@@ -984,7 +1105,7 @@ function renderPositions(s) {
   const sum = s.manual_summary;
   patch($('#positions-summary'), sum && (sum.open || sum.realized) ? `<div><span>Open logged positions</span><strong>${sum.open}</strong></div><div><span>Cost basis</span><strong>${money(sum.cost_basis)}</strong></div><div><span>Unrealized · fresh marks only</span><strong class="${sum.unrealized === null ? '' : pnlClass(sum.unrealized)}">${sum.unrealized === null ? (sum.open ? 'awaiting fresh quotes' : '—') : signedMoney(sum.unrealized)}</strong></div><div><span>Realized from logged sales</span><strong class="${pnlClass(sum.realized)}">${signedMoney(sum.realized)}</strong></div>` : '');
   const positions = s.manual_positions || [];
-  patch($('#manual-positions'), positions.length ? positions.map(p => `<article class="trade"><div class="trade-head"><strong>${esc(p.symbol)}</strong><span class="pill ${p.mark_state === 'unusable' ? 'bad' : p.mark_state === 'reference' ? 'warn' : ''}">USER-REPORTED · ${esc(p.asset)}${p.mark_state === 'reference' ? ' · LAST CLOSE' : ''}</span></div><p>${p.quantity.toLocaleString('en-US', {maximumFractionDigits:8})} units · average fill ${money(p.average_price)}${p.asset === 'option' ? ' × 100 shares/contract' : ''}</p><p class="hint">Cost basis ${money(p.cost_basis)} · ${p.mark === null ? 'Valuation unavailable' : (p.mark_state === 'reference' ? 'last-close mark ' : 'mark ') + money(p.mark) + ' · unrealized <span class="pnl ' + pnlClass(p.unrealized_pnl) + '">' + signedMoney(p.unrealized_pnl) + '</span>'}<br>Planned stop ${p.stop ? money(p.stop) : 'not logged'} · ${esc(p.data_status)}</p></article>`).join('')
+  patch($('#manual-positions'), positions.length ? positions.map(p => `<article class="trade"><div class="trade-head"><strong>${esc(p.symbol)}</strong><span class="pill ${p.mark_state === 'unusable' ? 'bad' : p.mark_state === 'reference' ? 'warn' : ''}">USER-REPORTED · ${esc(p.asset)}${p.mark_state === 'reference' ? ' · LAST CLOSE' : ''}</span></div><p>${p.quantity.toLocaleString('en-US', {maximumFractionDigits:8})} units · average fill ${money(p.average_price)}${p.asset === 'option' ? ' × 100 shares/contract' : ''}</p><p class="hint">Cost basis ${money(p.cost_basis)} · ${p.mark === null ? 'Valuation unavailable' : (p.mark_state === 'reference' ? 'last-close mark ' : 'mark ') + money(p.mark) + ' · unrealized <span class="pnl ' + pnlClass(p.unrealized_pnl) + '">' + signedMoney(p.unrealized_pnl) + '</span>'}<br>Planned stop ${p.stop ? money(p.stop) : 'not logged'} · ${esc(p.data_status)}</p><div class="position-actions"><button type="button" class="text-button" data-close-position="${esc(p.symbol)}">Log a closing sale</button></div></article>`).join('')
     : '<div class="empty"><h3>Your real trades, in one place.</h3><p>Translate a fill or enter its fields manually.<br>Nothing here places an order.</p></div>');
   const review = s.position_review || {status:'idle'};
   let html = review.message ? `<p class="hint">${esc(review.message)}</p>` : '';
@@ -998,7 +1119,7 @@ function renderPositions(s) {
     return `<article class="panel review-result"><div class="review-verdict ${r.action === 'HOLD' ? 'verdict-yes' : 'verdict-no'}">${stale ? 'RECHECK' : esc(r.action)} <span>${esc(r.symbol)} · ${label}</span></div><p class="hint">${time(r.checked_at)} · advisory only; verify in your broker before acting.</p>${r.checks.map(c => `<p class="hint">${esc(c)}</p>`).join('')}<div class="review-columns">${r.votes.map(v => `<div><h3>${esc(v.agent)} · ${esc(v.action)}</h3><p class="hint">${esc(v.summary)}</p>${list(v.factors, 'No factors returned.')}</div>`).join('')}</div></article>`;
   }).join('');
   patch($('#position-review'), html);
-  patch($('#fill-history'), (s.manual_fills || []).map(f => `<div class="reject plain"><strong>${esc(f.side.toUpperCase())} ${esc(f.symbol)}</strong><span>${f.quantity} at ${money(f.price)} · ${f.executed_at ? esc(f.executed_at) : 'fill time not provided'}<br>Recorded ${esc(new Date(f.recorded_at).toLocaleString())}</span></div>`).join('') || '<p class="hint">No fills logged yet.</p>');
+  patch($('#fill-history'), (s.manual_fills || []).map(f => `<div class="reject plain"><strong>${esc(f.side.toUpperCase())} ${esc(f.symbol)}</strong><span>${f.quantity} at ${money(f.price)} · ${f.executed_at ? esc(f.executed_at) : 'fill time not provided'}<br>Recorded ${esc(new Date(f.recorded_at).toLocaleString())}</span><span class="why"><button type="button" class="text-button" data-remove-fill="${esc(f.id)}">Remove this entry</button></span></div>`).join('') || '<p class="hint">No fills logged yet.</p>');
 }
 
 // ---------- Activity / debug ----------
