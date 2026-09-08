@@ -11,9 +11,13 @@ live API, and how many AI requests it cost.
 ## Unreleased
 
 ### Live-session readiness
+- An open paper position no longer pins research settings. It now pins only the values its reserved
+  capital and risk were sized against (budget, risk, loss allowance, max position, mode), so research
+  cadence and request caps stay editable mid-position. Previously a single open trade silently forced
+  the whole session back to whatever settings it was opened under, even across restarts.
 - Fixed truncated Gemini thesis and outlook replies. Measured on gemini-3.8-flash: a grounded thesis
   spent 5,422 thinking tokens against a 1,717-token answer, so the previous 4,096-token headroom left
-  the answer to be cut off mid-JSON. Headroom raised to 12,288 (); the
+  the answer to be cut off mid-JSON. Headroom raised to 12,288 via ai.GOOGLE_THINKING_HEADROOM; the
   ceiling only bills what is generated.
 - Researched theses now produce a trade candidate outside market hours. `strategy.quote_state()` is
   shared by position review and contract selection, grading a price as fresh / last-close reference /

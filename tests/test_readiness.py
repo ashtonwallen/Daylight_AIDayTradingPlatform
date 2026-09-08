@@ -1,4 +1,5 @@
 """Live-session readiness: configurable daily budget and unusable option entitlements."""
+import json
 import os
 import tempfile
 import unittest
@@ -93,6 +94,62 @@ class OptionEntitlementTests(unittest.TestCase):
     def test_a_fresh_session_provider_retries_entitlements(self):
         self.provider._options_denied = 'stale denial'
         self.assertIsNone(Alpaca()._options_denied)
+
+
+
+
+class OpenPositionPinningTests(unittest.TestCase):
+    """An open paper position pins the capital it was sized against, not the research settings."""
+
+    def setUp(self):
+        for mock in (patch.dict(os.environ, {'APCA_API_KEY_ID': 'x', 'APCA_API_SECRET_KEY': 'x', 'OPENAI_API_KEY': 'x'}),
+                     patch.object(Alpaca, 'tracking_quotes', return_value=({}, [])),
+                     patch.object(Engine, 'launch_research'), patch.object(Engine, 'launch_long_research')):
+            mock.start()
+            self.addCleanup(mock.stop)
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.engine = Engine(Path(self.temp.name) / 'journal.sqlite3')
+
+    def open_paper_trade(self, config):
+        from market import now, stamp
+        trade = {'id': 't1', 'symbol': 'BTC/USD', 'underlying': 'BTC/USD', 'asset': 'bitcoin', 'status': 'open',
+                 'mode': 'live', 'config': dict(config), 'notional': 100, 'risk': 10, 'quantity': .001,
+                 'entry': 100000, 'stop': 90000, 'target': 120000, 'multiplier': 1,
+                 'opened_at': stamp(now()), 'mark_status': 'Awaiting next quote'}
+        self.engine.save_trade(trade)
+        self.engine.trades.append(trade)
+
+    def test_research_settings_stay_editable_while_a_position_is_open(self):
+        old = dict(DEFAULT, research_interval=600, research_calls=36)
+        self.open_paper_trade(old)
+        self.engine.config = dict(DEFAULT, research_interval=1200, research_calls=60)
+        with self.engine.db() as db:
+            db.execute("INSERT OR REPLACE INTO settings VALUES ('session',?)", (json.dumps(self.engine.config),))
+        # A restart must not drag the cadence back to whatever the open trade was opened under.
+        reloaded = Engine(self.engine.db_path)
+        self.assertEqual(reloaded.config['research_interval'], 1200)
+        self.assertEqual(reloaded.config['research_calls'], 60)
+        # Starting with new research settings is allowed.
+        reloaded.start(dict(DEFAULT, research_interval=1800, research_calls=60))
+        self.assertEqual(reloaded.config['research_interval'], 1800)
+
+    def test_capital_settings_are_still_pinned(self):
+        self.open_paper_trade(dict(DEFAULT, budget=8000))
+        self.engine.config = validate(dict(DEFAULT, budget=8000))
+        for change in ({'budget': 30000}, {'risk_pct': 2}, {'loss_limit_pct': 4}, {'max_position_pct': 50}):
+            attempt = dict(DEFAULT, budget=8000)
+            attempt.update(change)
+            with self.subTest(change=change), self.assertRaisesRegex(ValueError, 'cannot change while paper positions are open'):
+                self.engine.start(validate(attempt))
+
+    def test_a_reloaded_engine_keeps_the_positions_capital_basis(self):
+        self.open_paper_trade(dict(DEFAULT, budget=8000, risk_pct=2, loss_limit_pct=4))
+        with self.engine.db() as db:
+            db.execute("INSERT OR REPLACE INTO settings VALUES ('session',?)", (json.dumps(dict(DEFAULT, budget=99999)),))
+        reloaded = Engine(self.engine.db_path)
+        self.assertEqual(reloaded.config['budget'], 8000)
+        self.assertEqual(reloaded.config['risk_pct'], 2)
 
 
 if __name__ == '__main__':
