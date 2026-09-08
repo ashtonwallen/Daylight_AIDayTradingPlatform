@@ -36,6 +36,7 @@
   <form id="session-form" class="panel setup">
     <div class="panel-heading"><h2>Your session</h2></div>
     <fieldset id="settings">
+      <p id="capital-locked" class="locked-note" hidden>Budget, risk and watchlist are locked while the session runs, because open positions were sized against them. Research settings below stay editable.</p>
       <label for="budget">Trading budget <span>USD</span></label>
       <div class="money-input"><span>$</span><input id="budget" type="number" min="10" max="10000000" value="10000" required></div>
       <label>Follow markets</label>
@@ -66,8 +67,17 @@
         <div id="budget-preview" class="limits-preview"></div>
       </details>
     </fieldset>
-    <button id="go" class="primary" type="submit">Go <span>↗</span></button>
-    <button id="stop" type="button" class="secondary" hidden>Stop session</button>
+    <button id="go" class="primary" type="submit">Start session <span>↗</span></button>
+    <div id="stop-wrap" class="stop-wrap" hidden>
+      <button id="stop" type="button" class="danger">Stop session</button>
+      <div id="stop-confirm" class="stop-confirm" hidden>
+        <p class="hint">Stop scanning? Current ideas are withdrawn. Research, plans, the journal and your logged positions are kept.</p>
+        <div class="stop-confirm-actions">
+          <button id="stop-cancel" type="button">Keep running</button>
+          <button id="stop-yes" type="button" class="danger">Stop session</button>
+        </div>
+      </div>
+    </div>
     <p class="hint center">Suggestions only. You place every real trade.</p>
     <div id="form-error" role="alert"></div>
   </form>
@@ -85,24 +95,24 @@
     <div><span>Available paper capital</span><strong id="available">$10,000</strong></div>
     <div><span>Remaining risk allowance</span><strong id="risk-left">$300</strong></div>
     <div><span>Last market scan</span><strong id="last-scan">—</strong></div>
-    <div><span>AI requests this session</span><strong id="calls">0 / 36</strong></div>
+    <div><span>AI requests left today</span><strong id="calls">—</strong><small id="calls-note" class="stat-note"></small></div>
   </section>
   <div class="health-strip"><span id="feed-summary">Waiting for market data</span><span id="scan-cadence"></span><span id="daily-usage">Daily AI allowance: 0 / 120</span></div>
   <div id="ai-pause-note" class="banner" hidden></div>
 
-  <nav class="tabs" aria-label="Workspace">
-    <button class="active" data-tab="overview">Market desk</button>
-    <button data-tab="idea-check">Idea check</button>
-    <button data-tab="session-chat">Session chat</button>
-    <button data-tab="my-positions">My positions</button>
-    <button data-tab="research">Research & sources <span id="source-count">0</span></button>
-    <button data-tab="journal">Paper journal <span id="trade-count">0</span></button>
-    <button data-tab="debug">Activity · debug</button>
-    <button data-tab="ai-settings">AI settings</button>
+  <nav class="tabs" role="tablist" aria-label="Workspace">
+    <button class="active" role="tab" aria-selected="false" aria-controls="overview" data-tab="overview">Market desk</button>
+    <button role="tab" aria-selected="false" aria-controls="idea-check" data-tab="idea-check">Idea check</button>
+    <button role="tab" aria-selected="false" aria-controls="session-chat" data-tab="session-chat">Session chat</button>
+    <button role="tab" aria-selected="false" aria-controls="my-positions" data-tab="my-positions">My positions</button>
+    <button role="tab" aria-selected="false" aria-controls="research" data-tab="research">Research & sources <span id="source-count">0</span></button>
+    <button role="tab" aria-selected="false" aria-controls="journal" data-tab="journal">Paper journal <span id="trade-count">0</span></button>
+    <button role="tab" aria-selected="false" aria-controls="debug" data-tab="debug">Activity · debug</button>
+    <button role="tab" aria-selected="false" aria-controls="ai-settings" data-tab="ai-settings">AI settings</button>
   </nav>
 
   <!-- Market desk -->
-  <section id="overview" class="tab-content">
+  <section id="overview" role="tabpanel" tabindex="0" class="tab-content">
     <div class="section-title"><h2 data-tip="Ideas are alternatives, not a combined portfolio. Sizes use available paper capital; verify your actual buying power. Ranking is a heuristic, not a win probability.">Current ideas</h2><span id="next-scan" class="muted">Waiting for your session</span></div>
     <div id="session-banner" class="session-banner" hidden></div>
     <div id="alerts" role="status"></div>
@@ -173,7 +183,7 @@
   </section>
 
   <!-- Idea check -->
-  <section id="idea-check" class="tab-content" hidden>
+  <section id="idea-check" role="tabpanel" tabindex="0" class="tab-content" hidden>
     <div class="section-title"><h2 id="idea-heading">Research a trade thesis</h2><span id="review-count" class="muted"></span></div>
     <div class="segmented" role="tablist" aria-label="Idea check mode">
       <button type="button" data-idea-mode="thesis" class="active" role="tab">Research a thesis</button>
@@ -195,7 +205,7 @@
   </section>
 
   <!-- My positions -->
-  <section id="my-positions" class="tab-content" hidden>
+  <section id="my-positions" role="tabpanel" tabindex="0" class="tab-content" hidden>
     <div class="section-title"><h2 data-tip="Log one executed purchase or closing sale at a time. These positions are separate from paper estimates, and balances are based only on what you log here. Nothing on this page places or reconciles a brokerage order.">Trades you actually made</h2><span class="muted">Your reported fills · no broker execution</span></div>
     <div id="positions-summary" class="stats"></div>
     <form id="translate-form" class="panel">
@@ -226,7 +236,7 @@
     <details><summary>Reported fill history</summary><div id="fill-history"></div></details>
   </section>
 
-  <section id="session-chat" class="tab-content" hidden>
+  <section id="session-chat" role="tabpanel" tabindex="0" class="tab-content" hidden>
     <div class="section-title"><h2 data-tip="Each message sends a bounded summary of your session settings, latest quotes and candles, positions, ideas and available research to your selected AI provider. Chat uses existing data; it does not browse or place trades. Includes the last twelve messages. Conversation clears when the server restarts.">Session chat</h2><button id="clear-chat" type="button" class="text-button">Clear conversation</button></div>
     <p class="hint">Discuss your session, compare ideas, or ask what needs attention.</p>
     <div class="research-controls chat-starters"><button type="button" class="text-button" data-chat-prompt="Give me a concise session briefing: what matters now, what changed, and what data is missing?">Brief me</button><button type="button" class="text-button" data-chat-prompt="Compare the strongest available ideas. Explain the evidence, disagreements, downside and reasons to wait.">Compare ideas</button><button type="button" class="text-button" data-chat-prompt="Review my reported positions and paper trades separately. What risks or upcoming catalysts deserve attention?">Review my exposure</button></div>
@@ -239,7 +249,7 @@
   </section>
 
   <!-- Research -->
-  <section id="research" class="tab-content" hidden>
+  <section id="research" role="tabpanel" tabindex="0" class="tab-content" hidden>
     <div class="section-title"><h2 data-tip="AI interpretations of public sources. Agents run automatically on your research cycle; Refresh now starts a cycle immediately without changing that schedule. Social results are a partial search sample, not a complete feed. Source dates are extracted by the model and need review.">Research room</h2><div class="research-controls"><span id="research-state" class="muted">Waiting</span><button id="refresh-research" class="text-button" type="button">Refresh now · 3 AI requests ↗</button></div></div>
     <div id="agents" class="agents"></div>
 
@@ -263,14 +273,14 @@
   </section>
 
   <!-- Paper journal -->
-  <section id="journal" class="tab-content" hidden>
+  <section id="journal" role="tabpanel" tabindex="0" class="tab-content" hidden>
     <div class="section-title"><h2 data-tip="&ldquo;Track on paper&rdquo; reserves hypothetical capital against an idea. Entry estimates use the ask; exits and marks use the bid. Fees, slippage, real brokerage positions and buying power are not modelled, and no fill is placed or guaranteed. Close estimates yourself: a stop or target crossing is an observation, never an automatic exit.">Paper journal</h2><button id="export" class="text-button">Export research & journal ↗</button></div>
     <div id="journal-summary" class="stats"></div>
     <div id="trades"></div>
   </section>
 
   <!-- Activity / debug -->
-  <section id="debug" class="tab-content" hidden>
+  <section id="debug" role="tabpanel" tabindex="0" class="tab-content" hidden>
     <div class="section-title"><h2 data-tip="Requests, research outcomes and decision checks as they happen. These are operational summaries and reported evidence, never private model reasoning: no raw tokens, prompts or credentials are shown. Viewing this makes no extra AI requests.">Behind the scenes</h2><span id="debug-status" class="muted">Live activity summaries</span></div>
     <div id="category-health" class="category-health"></div>
     <div id="debug-workers" class="debug-workers"></div>
@@ -286,7 +296,7 @@
   </section>
 
   <!-- AI settings -->
-  <section id="ai-settings" class="tab-content" hidden>
+  <section id="ai-settings" role="tabpanel" tabindex="0" class="tab-content" hidden>
     <div class="section-title"><h2 data-tip="One selected provider powers research, idea checks, trade translation and position reviews. Pause all AI and let in-flight requests finish before saving a change, so a provider never switches mid-request. Saving settings makes no AI calls.">Choose your intelligence</h2><span id="provider-current" class="muted"></span></div>
     <div id="provider-list" class="provider-list"></div>
     <form id="provider-form" class="panel">

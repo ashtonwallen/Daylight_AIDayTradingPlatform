@@ -137,6 +137,27 @@ class PositionsMixin:
             self.position_review={'status':'idle','message':'Positions changed; request a new review.'}
             self.trace('My positions','complete',f"Recorded {fill['side']} of {fill['quantity']:g} {fill['symbol']} at ${fill['price']:g}. No brokerage order sent.")
 
+    def delete_fill(self, fill_id):
+        """Remove one logged fill. A journal you can only append to gets abandoned.
+
+        The remaining ledger is re-derived first, so a deletion that would leave a sale exceeding
+        the quantity held is refused rather than silently producing a negative position.
+        """
+        if not isinstance(fill_id,str) or not fill_id:raise ValueError('Choose a logged fill to remove.')
+        with self.lock:
+            remaining=[f for f in self.manual_fills if f['id']!=fill_id]
+            if len(remaining)==len(self.manual_fills):raise ValueError('That fill is no longer in the log.')
+            removed=next(f for f in self.manual_fills if f['id']==fill_id)
+            try:holdings(remaining)
+            except ValueError:
+                raise ValueError('Removing this purchase would leave a recorded sale larger than the '
+                                 'remaining holding. Remove the later sale first.') from None
+            with self.db() as db:db.execute('DELETE FROM fills WHERE id=?',(fill_id,))
+            self.manual_fills=remaining
+            self.position_review={'status':'idle','message':'Positions changed; request a new review.'}
+            self.trace('My positions','complete',
+                       f"Removed logged {removed['side']} of {removed['quantity']:g} {removed['symbol']}. No brokerage order was involved.")
+
     def set_auto_position_review(self, enabled):
         if type(enabled) is not bool:raise ValueError('Automatic review must be true or false.')
         with self.lock:

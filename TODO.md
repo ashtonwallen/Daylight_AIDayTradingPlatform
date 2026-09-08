@@ -48,6 +48,8 @@ Tag with `(area)` — `market`, `research`, `ui`, `positions`, `infra` — so sc
 
 - [ ] **(feature) Move session chat to a right panel**  — The chatbot interface should be sticked as the user navigates the product, similar to the "Your Session" panel. It can be on the right side while your session is on the left.
 
+- [ ] **(feature) Allow uploading resources to agent chat AND My Positions tab**  — User should be able to upload typical resources to be used contextually. PDFs, Images, text files, csv, etc. I trade on robinhood so id like to be able to send robinhood screenshots of my portfolio and have that be used for context in agent chat, or to autofill positions in the my positions section. If this is a huge lift then dont do it for now. 
+
 ## Future
 
 - [ ] Earlier ideas are in `CREDITS_RESET_BACKLOG.md`. **Do not start them automatically.**
