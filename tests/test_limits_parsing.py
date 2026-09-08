@@ -1,6 +1,8 @@
 """Sizing limits and tolerant JSON recovery from provider replies."""
 import json
+import os
 import unittest
+from unittest.mock import patch
 
 from ai import extract_json
 from app import DEFAULT, validate
@@ -114,6 +116,40 @@ class OutlookDiagnosticsTests(unittest.TestCase):
         with self.assertRaises(DataError) as error:
             validate_outlook(outlook_response(dict(thesis_payload, trade_request={'symbol': 'NVDA', 'instrument': 'call', 'horizon_end': 'next month'})), thesis=True)
         self.assertIn('horizon_end', str(error.exception))
+
+
+
+
+class GoogleTokenBudgetTests(unittest.TestCase):
+    """Thinking tokens count against maxOutputTokens, so the answer needs protected room."""
+
+    def payload_for(self, max_tokens):
+        import ai
+        captured = {}
+        class Response:
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def read(self): return b'{}'
+        def fake_urlopen(request, timeout=None):
+            captured['body'] = json.loads(request.data)
+            return Response()
+        with patch.dict(os.environ, {'AI_PROVIDER': 'google', 'GOOGLE_MODEL': 'gemini-test', 'GOOGLE_API_KEY': 'k'}), \
+             patch('ai.urlopen', fake_urlopen), patch('json.load', return_value={'candidates': [{'finishReason': 'STOP'}]}):
+            ai.complete('instructions', 'data', web=True, max_tokens=max_tokens)
+        return captured['body']
+
+    def test_headroom_clears_observed_thinking_usage(self):
+        import ai
+        body = self.payload_for(5000)
+        budget = body['generationConfig']['maxOutputTokens']
+        self.assertEqual(budget, 5000 + ai.GOOGLE_THINKING_HEADROOM)
+        # A grounded thesis was measured at 5,422 thinking + 1,717 answer tokens; leave clear room.
+        self.assertGreater(budget - 5422, 5000, 'answer budget must survive observed thinking')
+
+    def test_headroom_scales_with_the_callers_budget(self):
+        small = self.payload_for(1000)['generationConfig']['maxOutputTokens']
+        large = self.payload_for(5000)['generationConfig']['maxOutputTokens']
+        self.assertEqual(large - small, 4000)
 
 
 if __name__ == '__main__':

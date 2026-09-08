@@ -11,6 +11,10 @@ live API, and how many AI requests it cost.
 ## Unreleased
 
 ### Live-session readiness
+- Fixed truncated Gemini thesis and outlook replies. Measured on gemini-3.8-flash: a grounded thesis
+  spent 5,422 thinking tokens against a 1,717-token answer, so the previous 4,096-token headroom left
+  the answer to be cut off mid-JSON. Headroom raised to 12,288 (); the
+  ceiling only bills what is generated.
 - Researched theses now produce a trade candidate outside market hours. `strategy.quote_state()` is
   shared by position review and contract selection, grading a price as fresh / last-close reference /
   unusable; when even the closing quote is unusable, `contracts.last_close()` falls back to the last
