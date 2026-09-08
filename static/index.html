@@ -11,6 +11,13 @@
 <header>
   <a class="brand" href="/"><span class="logo">◈</span> daylight<span class="brand-sub">RESEARCH DESK</span></a>
   <div class="header-right">
+    <label for="theme-select" class="sr-only">Colour theme</label>
+    <select id="theme-select" class="theme-select">
+      <option value="daylight">Daylight</option>
+      <option value="slate">Slate</option>
+      <option value="ember">Ember</option>
+      <option value="mono">Mono</option>
+    </select>
     <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch to light mode">Light mode</button>
     <button id="pause-ai" class="ai-stop" type="button">Pause all AI</button>
     <span id="connection" class="badge">LIVE DATA</span>
@@ -131,7 +138,7 @@
       <div class="research-controls chart-analysis-controls">
         <span id="chart-interval-control"><label for="chart-interval">Candle interval</label><select id="chart-interval" data-tip="Each candle covers this amount of time. Minute and hourly choices work with 1D and 5D history; longer ranges use hourly, daily or weekly candles automatically. At most 750 candles are displayed."><option value="auto">Auto</option><option value="1Min">1m</option><option value="5Min">5m</option><option value="15Min">15m</option><option value="1Hour">1h</option></select></span>
         <button id="chart-refresh" type="button" class="text-button">Refresh chart</button>
-        <button id="analyze-chart" type="button" class="text-button" data-tip="Sends the displayed OHLCV candles to your selected model for technical analysis. One AI request; no web search or trade execution. Results stay tied to the ticker, interval and candle timestamps you submitted.">Analyze chart · 1 AI request</button>
+        <button id="analyze-chart" type="button" class="action-button" data-tip="Sends the displayed OHLCV candles to your selected model for technical analysis. One AI request; no web search or trade execution. Results stay tied to the ticker, interval and candle timestamps you submitted.">Analyze chart <span class="cost">1 AI request</span></button>
       </div>
       <div id="chart-price" class="chart-price"></div>
       <div id="chart-caption" class="hint">Completed one-minute candles · last 45 bars</div>
@@ -150,6 +157,7 @@
     <section id="next-session-plans" class="panel scan-changes">
       <div class="section-title"><h2 data-tip="Uses completed daily prices and available catalyst research. These are conditional plans to recheck at the open, not live entries. Adds historical market-data requests; no extra AI requests.">Next-session ideas</h2><span class="muted">Daily bars · no AI requests</span></div>
       <label class="check"><input id="closed-market-ideas" type="checkbox"> Generate stock and option plans while the market is closed</label>
+      <div class="research-controls"><button id="regenerate-planning" type="button" class="action-button">Regenerate now <span class="cost">no AI requests</span></button><span id="planning-state" class="muted"></span></div>
       <div id="planning-results"></div>
     </section>
 

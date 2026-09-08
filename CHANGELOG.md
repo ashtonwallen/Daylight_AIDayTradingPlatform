@@ -10,6 +10,20 @@ live API, and how many AI requests it cost.
 
 ## Unreleased
 
+### Themes and UI
+- Four themes, each with a light and a dark mode: Daylight (the original green), Slate, Ember and
+  Mono. A theme declares about a dozen base values and the rest derive with color-mix, so adding one
+  no longer means hunting eighty hardcoded colours. `data-theme` selects the palette, `data-mode` the
+  light/dark variant, and both persist per browser.
+- Introduced --up and --down. Prices, P/L and verdicts stay green/red in every theme, because those
+  are read by convention; --accent now only drives interactive chrome. Removed every hardcoded colour
+  outside the token block and every [data-theme=light] override.
+- "Analyze chart" is a proper button rather than a text link, with its request cost as a quiet
+  sub-label. Same treatment for the new regenerate control.
+- Next-session ideas can be regenerated on demand instead of waiting for the next scan, matching the
+  Research room and long-horizon panels. Market data only, no AI requests.
+- Deleted the orphaned `static/extra.js`, dead since the frontend was consolidated into `app.js`.
+
 ### Live-session readiness
 - An open paper position no longer pins research settings. It now pins only the values its reserved
   capital and risk were sized against (budget, risk, loss allowance, max position, mode), so research

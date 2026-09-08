@@ -102,8 +102,6 @@ step, no bundler.** Keep it that way; it is why the thing starts instantly and i
 
 `static/index.html`, `static/app.js`, `static/style.css`. That is the whole UI.
 
-> `static/extra.js` is **orphaned** — not loaded by `index.html`, not served by `app.py`. It is a
-> leftover from an earlier structure. Do not add to it.
 
 ---
 

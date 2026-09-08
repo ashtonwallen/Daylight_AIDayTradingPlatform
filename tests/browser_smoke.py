@@ -53,12 +53,22 @@ with tempfile.TemporaryDirectory() as directory:
                                   ".filter(p => p.textContent.trim().length > 140).map(p => p.textContent.trim().slice(0, 60))")
             assert not wordy, f'these explanations should be tooltips: {wordy}'
             page.locator('#theme-toggle').click()
-            expect(page.locator('html')).to_have_attribute('data-theme', 'light')
+            expect(page.locator('html')).to_have_attribute('data-mode', 'light')
             page.reload()
-            expect(page.locator('html')).to_have_attribute('data-theme', 'light')
+            expect(page.locator('html')).to_have_attribute('data-mode', 'light')
             expect(page.locator('#theme-toggle')).to_have_text('Dark mode')
             page.locator('#theme-toggle').click()
-            expect(page.locator('html')).to_have_attribute('data-theme', 'dark')
+            expect(page.locator('html')).to_have_attribute('data-mode', 'dark')
+            # Every theme keeps a light and a dark mode, and the choice survives a reload.
+            for theme in ('slate', 'ember', 'mono', 'daylight'):
+                page.locator('#theme-select').select_option(theme)
+                expect(page.locator('html')).to_have_attribute('data-theme', theme)
+                assert page.evaluate("getComputedStyle(document.body).backgroundColor") != 'rgba(0, 0, 0, 0)'
+            page.locator('#theme-select').select_option('slate')
+            page.reload()
+            expect(page.locator('html')).to_have_attribute('data-theme', 'slate')
+            expect(page.locator('html')).to_have_attribute('data-mode', 'dark')
+            page.locator('#theme-select').select_option('daylight')
             risk_help = page.get_by_role('button', name='Help: Risk / idea %', exact=True)
             risk_help.focus()
             expect(page.locator('#help-popup')).to_contain_text('Limit 1 of 3')
