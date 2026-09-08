@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Daylight · Market research desk</title>
+<link rel="stylesheet" href="/style.css">
+<script defer src="/app.js"></script>
+</head>
+<body>
+<header>
+  <a class="brand" href="/"><span class="logo">◈</span> daylight<span class="brand-sub">RESEARCH DESK</span></a>
+  <div class="header-right">
+    <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch to light mode">Light mode</button>
+    <button id="pause-ai" class="ai-stop" type="button">Pause all AI</button>
+    <span id="connection" class="badge">LIVE DATA</span>
+    <span id="clock"></span>
+  </div>
+</header>
+
+<main>
+<section class="intro">
+  <h1>Market workspace</h1>
+  <div class="session-actions"><button id="refresh-market" type="button" title="Refresh quotes, candles, headlines and position marks using existing research. No AI requests. Requires a running session.">Refresh market data</button><div class="session-status"><span id="status-dot" class="dot"></span><span id="status">Session stopped</span></div></div>
+</section>
+
+<div class="workspace">
+<aside>
+  <form id="session-form" class="panel setup">
+    <div class="panel-heading"><h2>Your session</h2></div>
+    <fieldset id="settings">
+      <label for="budget">Trading budget <span>USD</span></label>
+      <div class="money-input"><span>$</span><input id="budget" type="number" min="10" max="10000000" value="10000" required></div>
+      <label>Follow markets</label>
+      <div class="asset-options">
+        <label><input type="checkbox" name="asset" value="stock" checked> Stocks</label>
+        <label><input type="checkbox" name="asset" value="option" checked> Options</label>
+        <label><input type="checkbox" name="asset" value="bitcoin" checked> Bitcoin</label>
+      </div>
+      <label for="symbols">Stock / option watchlist <span id="symbols-count"></span></label>
+      <input id="symbols" value="SPY, QQQ, AAPL, NVDA" required autocomplete="off" spellcheck="false">
+      <div class="two-col">
+        <div><label for="risk">Risk / idea %</label><input id="risk" type="number" min="0.1" max="25" step="0.1" value="1" required></div>
+        <div><label for="loss">Loss allowance %</label><input id="loss" type="number" min="0.5" max="50" step="0.5" value="3" required></div>
+      </div>
+      <label for="max-position">Max position size %</label>
+      <input id="max-position" type="number" min="5" max="100" step="1" value="25" required>
+      <div id="limits-preview" class="limits-preview"></div>
+      <details>
+        <summary>Research & cost controls</summary>
+        <label class="check"><input id="research" type="checkbox" checked> Enable AI web research</label>
+        <label class="check"><input id="require-research" type="checkbox" checked> Require sourced research for live ideas</label>
+        <label for="research-interval">Research cycle</label>
+        <select id="research-interval"><option value="300">Every 5 minutes</option><option value="600">Every 10 minutes</option><option value="900">Every 15 minutes</option><option value="1200" selected>Every 20 minutes</option><option value="1800">Every 30 minutes</option></select>
+        <label for="research-calls">AI request cap / session</label>
+        <input id="research-calls" type="number" min="3" max="300" step="3" value="60">
+        <label for="daily-ai-limit">AI request cap / day</label>
+        <input id="daily-ai-limit" type="number" min="10" max="2000" step="10" value="250">
+        <div id="budget-preview" class="limits-preview"></div>
+      </details>
+    </fieldset>
+    <button id="go" class="primary" type="submit">Go <span>↗</span></button>
+    <button id="stop" type="button" class="secondary" hidden>Stop session</button>
+    <p class="hint center">Suggestions only. You place every real trade.</p>
+    <div id="form-error" role="alert"></div>
+  </form>
+
+  <section class="panel connections">
+    <h3>Connections</h3>
+    <div id="connection-feeds"></div>
+    <details><summary>Provider configuration</summary><p class="hint">Alpaca: <span id="alpaca-status">Not configured</span><br>AI: <span id="ai-status">Not configured</span></p></details>
+  </section>
+</aside>
+
+<div class="desk">
+  <div id="mode-banner" class="banner live">Live market data · waiting for a scan</div>
+  <section class="stats">
+    <div><span>Available paper capital</span><strong id="available">$10,000</strong></div>
+    <div><span>Remaining risk allowance</span><strong id="risk-left">$300</strong></div>
+    <div><span>Last market scan</span><strong id="last-scan">—</strong></div>
+    <div><span>AI requests this session</span><strong id="calls">0 / 36</strong></div>
+  </section>
+  <div class="health-strip"><span id="feed-summary">Waiting for market data</span><span id="scan-cadence"></span><span id="daily-usage">Daily AI allowance: 0 / 120</span></div>
+  <div id="ai-pause-note" class="banner" hidden></div>
+
+  <nav class="tabs" aria-label="Workspace">
+    <button class="active" data-tab="overview">Market desk</button>
+    <button data-tab="idea-check">Idea check</button>
+    <button data-tab="session-chat">Session chat</button>
+    <button data-tab="my-positions">My positions</button>
+    <button data-tab="research">Research & sources <span id="source-count">0</span></button>
+    <button data-tab="journal">Paper journal <span id="trade-count">0</span></button>
+    <button data-tab="debug">Activity · debug</button>
+    <button data-tab="ai-settings">AI settings</button>
+  </nav>
+
+  <!-- Market desk -->
+  <section id="overview" class="tab-content">
+    <div class="section-title"><h2 data-tip="Ideas are alternatives, not a combined portfolio. Sizes use available paper capital; verify your actual buying power. Ranking is a heuristic, not a win probability.">Current ideas</h2><span id="next-scan" class="muted">Waiting for your session</span></div>
+    <div id="session-banner" class="session-banner" hidden></div>
+    <div id="alerts" role="status"></div>
+    <div id="ideas" class="ideas"></div>
+
+    <div class="section-title"><h2 data-tip="Every symbol being monitored this scan, what it is doing, and what has to change before it can produce an idea. “Waiting” is the normal state; it is not an error.">Watchlist status</h2><span id="watchlist-summary" class="muted"></span></div>
+    <div id="rejected" class="panel compact"><p class="hint">No observations yet.</p></div>
+
+    <section class="panel chart-panel">
+      <div class="panel-heading">
+        <h2>Price action</h2>
+        <div class="chart-picker">
+          <label for="chart-symbol-input" class="sr-only">Chart ticker</label>
+          <input id="chart-symbol-input" maxlength="12" placeholder="Ticker" autocomplete="off" spellcheck="false">
+          <button id="chart-symbol-go" type="button" class="compact">Show</button>
+          <div id="chart-quick-picks" class="chart-quick-picks"></div>
+        </div>
+      </div>
+      <div class="chart-spans" role="group" aria-label="Chart range">
+        <span class="muted">History</span>
+        <button type="button" class="chart-span active" data-span="1D">1D</button>
+        <button type="button" class="chart-span" data-span="5D">5D</button>
+        <button type="button" class="chart-span" data-span="1M">1M</button>
+        <button type="button" class="chart-span" data-span="6M">6M</button>
+        <button type="button" class="chart-span" data-span="1Y">1Y</button>
+        <button type="button" class="chart-span" data-span="5Y">5Y</button>
+        <span class="chart-type-toggle" role="group" aria-label="Chart style">
+          <button type="button" class="chart-span" data-chart-type="candles" title="Candlesticks: open, high, low and close for each bar">Candles</button>
+          <button type="button" class="chart-span" data-chart-type="line" title="Line: closing price only, easier to read over long ranges">Line</button>
+        </span>
+        <span id="chart-range-summary" class="muted"></span>
+      </div>
+      <div class="research-controls chart-analysis-controls">
+        <span id="chart-interval-control"><label for="chart-interval">Candle interval</label><select id="chart-interval" data-tip="Each candle covers this amount of time. Minute and hourly choices work with 1D and 5D history; longer ranges use hourly, daily or weekly candles automatically. At most 750 candles are displayed."><option value="auto">Auto</option><option value="1Min">1m</option><option value="5Min">5m</option><option value="15Min">15m</option><option value="1Hour">1h</option></select></span>
+        <button id="chart-refresh" type="button" class="text-button">Refresh chart</button>
+        <button id="analyze-chart" type="button" class="text-button" data-tip="Sends the displayed OHLCV candles to your selected model for technical analysis. One AI request; no web search or trade execution. Results stay tied to the ticker, interval and candle timestamps you submitted.">Analyze chart · 1 AI request</button>
+      </div>
+      <div id="chart-price" class="chart-price"></div>
+      <div id="chart-caption" class="hint">Completed one-minute candles · last 45 bars</div>
+      <div id="chart-hover" class="chart-hover" aria-live="off"></div>
+      <div id="chart" class="chart"><p class="hint">Candles appear after the first scan.</p></div>
+      <div id="metrics" class="metrics"></div>
+      <div id="chart-analysis-status" class="hint" role="status"></div>
+      <div id="chart-analysis-result"></div>
+    </section>
+
+    <section id="discovery" class="discovery-section">
+      <div class="section-title"><h2 data-tip="News and public social searches can surface new names. Leads need fresh quotes, price confirmation and company-specific news before they become trade ideas. Public search does not measure Reddit traction.">Beyond your watchlist</h2><span class="muted">Up to 6 research leads</span></div>
+      <div id="discovery-list"></div>
+    </section>
+
+    <section id="next-session-plans" class="panel scan-changes">
+      <div class="section-title"><h2 data-tip="Uses completed daily prices and available catalyst research. These are conditional plans to recheck at the open, not live entries. Adds historical market-data requests; no extra AI requests.">Next-session ideas</h2><span class="muted">Daily bars · no AI requests</span></div>
+      <label class="check"><input id="closed-market-ideas" type="checkbox"> Generate stock and option plans while the market is closed</label>
+      <div id="planning-results"></div>
+    </section>
+
+    <section id="scan-changes" class="panel scan-changes">
+      <div class="section-title"><h2 data-tip="Compares each scan with the one before it. New qualifying ideas raise an alert, with a 10-minute cooldown per symbol and direction. Desktop alerts require this page to stay open. The history describes what changed between scans; it is not a set of current trade instructions.">What changed?</h2><span class="muted">No extra AI requests</span></div>
+      <div class="alert-controls">
+        <label class="check"><input id="opportunity-alerts" type="checkbox"> Opportunity alerts</label>
+        <button id="desktop-alerts" type="button" class="text-button">Enable desktop alerts</button>
+      </div>
+      <details id="change-history"><summary>Recent scan changes</summary><div id="change-events"></div></details>
+      <p id="change-summary" class="hint" role="status"></p>
+    </section>
+  </section>
+
+  <!-- Idea check -->
+  <section id="idea-check" class="tab-content" hidden>
+    <div class="section-title"><h2 id="idea-heading">Research a trade thesis</h2><span id="review-count" class="muted"></span></div>
+    <div class="segmented" role="tablist" aria-label="Idea check mode">
+      <button type="button" data-idea-mode="thesis" class="active" role="tab">Research a thesis</button>
+      <button type="button" data-idea-mode="live" role="tab">Check against the live scan</button>
+      <button type="button" data-idea-mode="outlook" role="tab">Long-term outlook</button>
+    </div>
+    <form id="idea-form" class="panel">
+      <label for="idea-text" id="idea-label">What trade are you considering?</label>
+      <textarea id="idea-text" rows="4" minlength="5" maxlength="2000" required></textarea>
+      <div id="idea-prompts" class="idea-prompts"></div>
+      <button id="check-idea" class="primary" type="submit">Research my thesis <span>↗</span></button>
+      <details><summary>How to read the result</summary><p id="idea-legend" class="hint"></p></details>
+      <p id="idea-error" role="alert"></p>
+    </form>
+    <div id="idea-result" aria-live="polite"></div>
+    <details id="thesis-history-wrap" class="review-history"><summary>Previous thesis research · saved locally</summary><div id="thesis-history"></div></details>
+    <details id="review-history-wrap" class="review-history" hidden><summary>Previous live checks · saved locally</summary><div id="review-history"></div></details>
+    <details id="outlook-history-wrap" class="review-history" hidden><summary>Saved long-term outlooks</summary><div id="outlook-history-list"></div></details>
+  </section>
+
+  <!-- My positions -->
+  <section id="my-positions" class="tab-content" hidden>
+    <div class="section-title"><h2 data-tip="Log one executed purchase or closing sale at a time. These positions are separate from paper estimates, and balances are based only on what you log here. Nothing on this page places or reconciles a brokerage order.">Trades you actually made</h2><span class="muted">Your reported fills · no broker execution</span></div>
+    <div id="positions-summary" class="stats"></div>
+    <form id="translate-form" class="panel">
+      <label for="fill-text">Describe your fill</label>
+      <textarea id="fill-text" rows="3" minlength="5" maxlength="2000" placeholder="I bought 10 AAPL shares at $225.50, with a planned stop at $220."></textarea>
+      <button id="translate-fill" class="secondary" type="submit">Translate to trade fields · 1 AI request</button>
+      <p id="translate-message" class="hint" role="status"></p>
+    </form>
+    <form id="fill-form" class="panel fill-form">
+      <h3 data-tip="Review every translated field before confirming. A blank fill time means unknown, and the log records when you saved it. Holdings use average-cost accounting in the order you confirm them, which is not tax-lot accounting.">Review or enter manually</h3>
+      <div class="fill-grid">
+        <div><label for="fill-asset">Asset</label><select id="fill-asset"><option value="stock">Stock / ETF</option><option value="bitcoin">Bitcoin</option><option value="option">Long option</option></select></div>
+        <div><label for="fill-side">Fill side</label><select id="fill-side"><option value="buy">Bought</option><option value="sell">Sold existing holdings</option></select></div>
+        <div><label for="fill-symbol">Symbol / full OCC option symbol</label><input id="fill-symbol" required placeholder="AAPL or BTC/USD"></div>
+        <div><label for="fill-quantity">Quantity</label><input id="fill-quantity" type="number" min="0.00000001" step="any" required></div>
+        <div><label for="fill-price">Fill price per unit (USD)</label><input id="fill-price" type="number" min="0.00000001" step="any" required></div>
+        <div><label for="fill-stop">Planned stop per unit · optional</label><input id="fill-stop" type="number" min="0.00000001" step="any"></div>
+        <div><label for="fill-time">Fill time · optional ISO + timezone</label><input id="fill-time" placeholder="2026-09-08T10:00:00-04:00"></div>
+        <div><label for="fill-notes">Notes</label><input id="fill-notes" maxlength="500"></div>
+      </div>
+      <button id="save-fill" class="primary" type="submit">Confirm & log executed fill <span>↗</span></button>
+      <p id="fill-error" role="alert"></p>
+    </form>
+    <div class="section-title"><h2 data-tip="Quotes refresh with live market scans, and outside market hours a position is valued at the last quote before the close. Agent reviews run only when you ask, unless you enable automatic reviews. Two agents agreeing is not independent evidence of profitability.">Open positions</h2><button id="review-positions" class="text-button">Ask two agents to review · 2 AI requests ↗</button></div>
+    <label class="check"><input id="auto-positions" type="checkbox"> Automatically review on the research cadence (off by default)</label>
+    <div id="manual-positions"></div>
+    <div id="position-review"></div>
+    <details><summary>Reported fill history</summary><div id="fill-history"></div></details>
+  </section>
+
+  <section id="session-chat" class="tab-content" hidden>
+    <div class="section-title"><h2 data-tip="Each message sends a bounded summary of your session settings, latest quotes and candles, positions, ideas and available research to your selected AI provider. Chat uses existing data; it does not browse or place trades. Includes the last twelve messages. Conversation clears when the server restarts.">Session chat</h2><button id="clear-chat" type="button" class="text-button">Clear conversation</button></div>
+    <p class="hint">Discuss your session, compare ideas, or ask what needs attention.</p>
+    <div class="research-controls chat-starters"><button type="button" class="text-button" data-chat-prompt="Give me a concise session briefing: what matters now, what changed, and what data is missing?">Brief me</button><button type="button" class="text-button" data-chat-prompt="Compare the strongest available ideas. Explain the evidence, disagreements, downside and reasons to wait.">Compare ideas</button><button type="button" class="text-button" data-chat-prompt="Review my reported positions and paper trades separately. What risks or upcoming catalysts deserve attention?">Review my exposure</button></div>
+    <div id="chat-messages" role="log" aria-label="Conversation" aria-live="polite"></div>
+    <form id="chat-form">
+      <label for="chat-input">Message</label><textarea id="chat-input" rows="3" maxlength="2000" placeholder="What do the agents disagree about, and how does that affect my positions?" required></textarea>
+      <div class="research-controls"><button id="send-chat" type="submit">Send · 1 AI request</button><span id="chat-status" class="muted" role="status"></span></div>
+      <p id="chat-error" class="error" role="alert"></p>
+    </form>
+  </section>
+
+  <!-- Research -->
+  <section id="research" class="tab-content" hidden>
+    <div class="section-title"><h2 data-tip="AI interpretations of public sources. Agents run automatically on your research cycle; Refresh now starts a cycle immediately without changing that schedule. Social results are a partial search sample, not a complete feed. Source dates are extracted by the model and need review.">Research room</h2><div class="research-controls"><span id="research-state" class="muted">Waiting</span><button id="refresh-research" class="text-button" type="button">Refresh now · 3 AI requests ↗</button></div></div>
+    <div id="agents" class="agents"></div>
+
+    <section id="long-research" class="panel long-research">
+      <div class="section-title"><h2 data-tip="Explore opportunities across the market using your saved risk tolerance, horizon and interests. One AI request per run. Automatic research is off by default. These views never change intraday sizing or entry rules.">Long-horizon research</h2><div class="research-controls"><button id="refresh-long-research" type="button">Run long horizon research now</button><span class="muted">1 AI request</span></div></div>
+      <div class="long-brief-controls">
+        <label>Risk tolerance <select id="long-risk" data-tip="Guides the research universe and downside analysis. Conservative favors resilience; balanced allows selective catalysts; aggressive includes speculative opportunities. This does not change your trading risk limits."><option value="conservative">Conservative</option><option value="balanced" selected>Balanced</option><option value="aggressive">Aggressive</option></select></label>
+        <label>Time horizon <select id="long-months"><option value="1">1 month</option><option value="3">3 months</option><option value="6" selected>6 months</option><option value="12">1 year</option><option value="24">2 years</option></select></label>
+      </div>
+      <label>Interests or exclusions <span class="muted">(optional)</span><textarea id="long-focus" maxlength="1000" rows="2" placeholder="Find overlooked beneficiaries of grid investment. Include ETFs; avoid biotech and mega-cap tech."></textarea></label>
+      <div class="research-controls long-presets" aria-label="Research starter briefs"><span class="muted">Start with</span><button type="button" class="text-button" data-long-preset="overlooked">Overlooked opportunities</button><button type="button" class="text-button" data-long-preset="catalysts">Upcoming catalysts</button><button type="button" class="text-button" data-long-preset="resilient">Resilient businesses</button></div>
+      <div class="research-controls"><button id="save-long-brief" class="text-button" type="button">Save research preferences</button><span id="long-brief-status" class="muted" role="status"></span></div>
+      <label class="check"><input id="long-term-toggle" type="checkbox"> Run a long-horizon agent on the research cycle</label>
+      <div class="research-controls"><span id="long-research-state" class="muted"></span></div>
+      <div id="long-research-results"></div>
+    </section>
+    <div class="section-title"><h2 data-tip="&quot;Applies to&quot; names the symbol a source is about, and Market-wide means it affects the whole market rather than one ticker. Sentiment is the model's read of the source, not a measured consensus. Sources without a verifiable publication time are shown for context but excluded from live signals.">Evidence &amp; sentiment</h2><div class="evidence-tools"><label for="evidence-filter" class="sr-only">Filter evidence by symbol</label><select id="evidence-filter"><option value="">All symbols</option></select></div></div>
+    <div id="evidence"></div>
+    <div class="section-title"><h2 data-tip="Headlines are listed as retrieved, without interpretation. Ask an agent to have it read that story and related sources, then report what the article establishes, who it affects and which angles are worth researching. Nothing here runs automatically.">Market news feed</h2><span class="muted">Alpaca · not independently verified</span></div>
+    <div id="news"></div>
+  </section>
+
+  <!-- Paper journal -->
+  <section id="journal" class="tab-content" hidden>
+    <div class="section-title"><h2 data-tip="&ldquo;Track on paper&rdquo; reserves hypothetical capital against an idea. Entry estimates use the ask; exits and marks use the bid. Fees, slippage, real brokerage positions and buying power are not modelled, and no fill is placed or guaranteed. Close estimates yourself: a stop or target crossing is an observation, never an automatic exit.">Paper journal</h2><button id="export" class="text-button">Export research & journal ↗</button></div>
+    <div id="journal-summary" class="stats"></div>
+    <div id="trades"></div>
+  </section>
+
+  <!-- Activity / debug -->
+  <section id="debug" class="tab-content" hidden>
+    <div class="section-title"><h2 data-tip="Requests, research outcomes and decision checks as they happen. These are operational summaries and reported evidence, never private model reasoning: no raw tokens, prompts or credentials are shown. Viewing this makes no extra AI requests.">Behind the scenes</h2><span id="debug-status" class="muted">Live activity summaries</span></div>
+    <div id="category-health" class="category-health"></div>
+    <div id="debug-workers" class="debug-workers"></div>
+    <details><summary>Feed health & freshness</summary><div id="feed-health"></div></details>
+    <div class="debug-controls">
+      <label for="debug-filter" data-tip="Newest first, holding the last 300 events in server memory; a server restart clears them. Pausing freezes this view only, and the session keeps running. Collapsed rows show how many identical events repeated and since when.">Show</label>
+      <select id="debug-filter"><option value="all">All activity</option><option value="research">Research agents</option><option value="decisions">Price & decisions</option><option value="problems">Warnings & errors</option></select>
+      <label class="check"><input id="debug-collapse" type="checkbox" checked> Collapse repeats</label>
+      <button id="debug-pause" class="text-button" type="button">Pause view</button>
+      <button id="debug-export" class="text-button" type="button">Export activity ↗</button>
+    </div>
+    <div id="debug-events" class="debug-events"></div>
+  </section>
+
+  <!-- AI settings -->
+  <section id="ai-settings" class="tab-content" hidden>
+    <div class="section-title"><h2 data-tip="One selected provider powers research, idea checks, trade translation and position reviews. Pause all AI and let in-flight requests finish before saving a change, so a provider never switches mid-request. Saving settings makes no AI calls.">Choose your intelligence</h2><span id="provider-current" class="muted"></span></div>
+    <div id="provider-list" class="provider-list"></div>
+    <form id="provider-form" class="panel">
+      <label for="provider">Provider</label>
+      <select id="provider"><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="google">Google Gemini</option><option value="local">LM Studio / local</option></select>
+      <label for="provider-model">Model ID</label>
+      <input id="provider-model" required maxlength="150" placeholder="Use the exact model ID from your provider" autocomplete="off" spellcheck="false">
+      <label for="provider-key" data-tip="Credentials are stored in this computer’s .env file as plain text and are never sent back to the browser. Cloud providers receive task context; local mode sends inference to your own server. Market data still comes from Alpaca either way.">API key / local bearer token</label>
+      <input id="provider-key" type="password" autocomplete="new-password" placeholder="Leave blank to keep the saved key">
+      <label class="check"><input id="provider-clear" type="checkbox"> Remove the saved key for this provider</label>
+      <div id="local-url-row" hidden>
+        <label for="provider-url" data-tip="Start the model server in LM Studio and use its loaded model ID. Localhost addresses only. The auth token is optional if your server does not require one.">Local OpenAI-compatible base URL</label>
+        <input id="provider-url" value="http://127.0.0.1:1234/v1">
+      </div>
+      <p id="provider-capability" class="hint"></p>
+      <button id="save-provider" class="primary" type="submit">Save provider settings <span>↗</span></button>
+      <p id="save-hint" class="hint"></p>
+      <p id="provider-message" role="status"></p>
+    </form>
+    <div class="panel test-panel">
+      <div class="section-title"><h3 data-tip="Sends a one-word prompt to the saved provider and model to confirm the credential, model ID and account access actually work, reporting the provider's own error if not. Counts toward the daily allowance, and works even while AI is paused because you trigger it explicitly.">Test the saved connection</h3><span class="muted">1 small AI request</span></div>
+      <button id="test-provider" class="secondary" type="button">Send test request</button>
+      <p id="ai-test-result" class="hint" role="status"></p>
+    </div>
+  </section>
+
+  <footer>Experimental research tool. Strategy performance has not been validated. Options can lose the full premium; actual stock/Bitcoin losses may exceed stop estimates.</footer>
+</div>
+</div>
+</main>
+<div id="toast" class="toast-stack" role="status" aria-live="polite"></div>
+</body>
+</html>
