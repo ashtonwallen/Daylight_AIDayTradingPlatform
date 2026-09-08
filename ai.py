@@ -107,9 +107,12 @@ def complete(instructions, data, web=False, domains=None, max_tokens=3000, can_s
         endpoint='https://generativelanguage.googleapis.com/v1beta/models/'+quote(model,safe='')+':generateContent'
         headers['x-goog-api-key']=key
         # Gemini counts internal thinking tokens against maxOutputTokens, so the caller's budget is
-        # treated as the visible-answer budget and thinking is given its own headroom on top.
+        # treated as the visible-answer budget and thinking is given headroom on top. Measured on
+        # gemini-3.8-flash: a grounded thesis spent 5,422 thinking tokens for a 1,717-token answer.
+        # Too little headroom starves the answer and truncates its JSON mid-object. The ceiling only
+        # costs what is actually generated, so it is set well clear of observed thinking.
         payload={'systemInstruction':{'parts':[{'text':instructions}]},'contents':[{'role':'user','parts':[{'text':content}]}],
-                 'generationConfig':{'maxOutputTokens':max_tokens+4096}}
+                 'generationConfig':{'maxOutputTokens':max_tokens+GOOGLE_THINKING_HEADROOM}}
         if web:
             payload['tools']=[{'google_search':{}}]
             if domains:payload['systemInstruction']['parts'][0]['text']+=' Search only these sites: '+', '.join(domains)+'.'
@@ -216,6 +219,9 @@ def extract_json(text):
 
 
 GROUNDING_REDIRECT = r'https://vertexaisearch\.cloud\.google\.com/grounding-api-redirect/[A-Za-z0-9_\-=]+'
+
+# Room for Gemini's internal reasoning on top of the caller's visible-answer budget.
+GOOGLE_THINKING_HEADROOM = 12288
 
 ENUM_ALIASES = {'neutral': 'mixed', 'unclear': 'mixed', 'uncertain': 'mixed', 'balanced': 'mixed',
                 'insufficient': 'no-conclusion', 'inconclusive': 'no-conclusion', 'none': 'no-conclusion',
