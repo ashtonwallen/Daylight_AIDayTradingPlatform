@@ -43,21 +43,10 @@ Tag with `(area)` — `market`, `research`, `ui`, `positions`, `infra` — so sc
 - [ ] **(research) Identify intraday setups and call the likely outcome** — the point of this
       tool is helping the user make money on timely decisions.
 
-
 - [ ] **(feature) Generate Positions Button**  — Everything that has produces research should have a little button on that research that says something like "generate positions" and it comes up with an actual play based on the info. If theres no good suggestion, indicate that.  
       
-- [ ] **(feature) Regenerate buttons on all items that do research on an interval**  — The Next-session ideas panel, when enabled, will generate a next session idea on an interval but it should also have a button to regenerate whats it there so the user doesnt have to wait. Maybe some additional options to customize this sections research. All places that generate a report like this on an interval should have a button to regenerate on demand
 
 - [ ] **(feature) Move session chat to a right panel**  — The chatbot interface should be sticked as the user navigates the product, similar to the "Your Session" panel. It can be on the right side while your session is on the left.
-
-- [ ] **(feature) Add multiple themes and a theme selector in the settings. I am kind of tired of the green but want to keep it around. Ensure light/dark mode for each theme**  
-
-- [ ] **(tweak) The Analyze chart · 1 AI request should be slightly more apparent**  
-
-## Housekeeping
-
-- [ ] **(infra) Remove or reinstate `static/extra.js`** — 239 lines, not loaded by `index.html` and
-      not served by `app.py`. Dead since the frontend was consolidated into `app.js`.
 
 ## Future
 

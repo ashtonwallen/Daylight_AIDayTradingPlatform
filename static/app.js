@@ -60,18 +60,31 @@ const sourceLabel = s => isRedirect(s.url) ? 'Source via Google Search · opens 
 const sourceLinks = sources => (sources || []).map(s => `<p class="hint"><a href="${url(s.url)}" target="_blank" rel="noopener noreferrer">${esc(sourceLabel(s))}</a> · ${esc(dateTime(s.published_at) || 'Publication date unverified')}${isRedirect(s.url) ? '' : sourceHost(s.url) && s.title ? ' · ' + esc(sourceHost(s.url)) : ''}</p>`).join('');
 
 // ---------- Theme (browser preference only; never triggers requests) ----------
-function applyTheme(theme) {
-  const light = theme === 'light';
-  document.documentElement.dataset.theme = light ? 'light' : 'dark';
+// A theme is a palette; a mode is light or dark within it. Both are browser preferences and never
+// reach the server. Older installs stored 'light'/'dark' under daylight-theme, so migrate those.
+const THEMES = ['daylight', 'slate', 'ember', 'mono'];
+function applyTheme(theme, mode) {
+  const root = document.documentElement;
+  root.dataset.theme = THEMES.includes(theme) ? theme : 'daylight';
+  root.dataset.mode = mode === 'light' ? 'light' : 'dark';
+  const light = root.dataset.mode === 'light';
   const button = $('#theme-toggle');
   button.textContent = light ? 'Dark mode' : 'Light mode';
   button.setAttribute('aria-label', light ? 'Switch to dark mode' : 'Switch to light mode');
+  $('#theme-select').value = root.dataset.theme;
 }
-applyTheme(store.get('daylight-theme', 'dark'));
+const storedTheme = store.get('daylight-theme', 'daylight');
+applyTheme(THEMES.includes(storedTheme) ? storedTheme : 'daylight',
+           store.get('daylight-mode', storedTheme === 'light' ? 'light' : 'dark'));
 $('#theme-toggle').onclick = () => {
-  const theme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
-  applyTheme(theme);
-  store.set('daylight-theme', theme);
+  const mode = document.documentElement.dataset.mode === 'light' ? 'dark' : 'light';
+  applyTheme(document.documentElement.dataset.theme, mode);
+  store.set('daylight-mode', mode);
+  store.set('daylight-theme', document.documentElement.dataset.theme);
+};
+$('#theme-select').onchange = e => {
+  applyTheme(e.target.value, document.documentElement.dataset.mode);
+  store.set('daylight-theme', e.target.value);
 };
 
 // ---------- API ----------
@@ -544,10 +557,23 @@ function renderDiscovery(s) {
 function renderPlanning(s) {
   $('#closed-market-ideas').checked = !!s.config.closed_market_ideas;
   const plans = s.next_session_ideas || [];
+  const blocker = !s.running ? 'Start a session to build plans.' : !s.config.closed_market_ideas ? 'Enable the checkbox above.' : null;
+  $('#regenerate-planning').disabled = !!blocker || s.scanning || s.market_refresh_requested;
+  $('#regenerate-planning').title = blocker || 'Fetch fresh daily bars and rebuild these plans now.';
+  setText($('#planning-state'), s.scanning || s.market_refresh_requested ? 'Rebuilding…'
+    : blocker ? blocker : plans.length ? `${plans.length} plan${plans.length === 1 ? '' : 's'} · rebuilt ${time(s.last_scan)}` : '');
   patch($('#planning-results'), !s.config.closed_market_ideas ? '' : plans.length ? plans.map(p => `<article class="evidence"><h3>${esc(p.symbol)} · ${esc(p.instruments.join(' / '))}</h3><span class="pill">NEXT-SESSION PLAN · RECHECK AT OPEN</span><p>${esc(p.summary)}</p><p class="hint">${esc(p.research_status)}<br>Last completed close: ${money(p.reference_close)} · ${esc(new Date(p.reference_at).toLocaleDateString())}<br>5-session change: ${p.five_session_change}%</p><ul>${p.conditions.map(c => `<li>${esc(c)}</li>`).join('')}</ul>${p.option_note ? `<p class="hint">${esc(p.option_note)}</p>` : ''}${sourceLinks(p.sources)}</article>`).join('')
     : `<p class="hint">${s.running ? 'No next-session plans yet. Plans need the US market to be closed, at least 20 completed daily bars and a clear 5/20-session trend; conflicting current research can withhold them.' : 'Start monitoring to build plans while the US stock market is closed.'}</p>`);
 }
 $('#closed-market-ideas').onchange = e => post('/api/planning', {enabled:e.target.checked}).catch(err => { toast(err.message); e.target.checked = !!state?.config.closed_market_ideas; });
+// Plans are rebuilt from the latest scan, so regenerating means fetching fresh daily bars now
+// rather than waiting for the next scheduled scan. Market data only.
+$('#regenerate-planning').onclick = async () => {
+  $('#regenerate-planning').disabled = true;
+  try { await post('/api/market/refresh'); toast('Rebuilding next-session plans from fresh daily bars. No AI requests.'); }
+  catch (e) { toast(e.message); }
+  finally { if (state) renderPlanning(state); }
+};
 
 // What changed + alerts (browser preferences; the server only records the events).
 let lastChangeId = null;
