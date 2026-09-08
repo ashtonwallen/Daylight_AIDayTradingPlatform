@@ -153,12 +153,25 @@ textarea{resize:vertical;min-height:120px;line-height:1.6;padding:14px}
 details{border-top:1px solid var(--line);margin-top:22px;padding-top:18px}
 summary{cursor:pointer;font-size:12px;color:var(--muted)}
 fieldset{padding:0;border:0;margin:0}
-fieldset:disabled{opacity:.65}
+/* Dimming a whole fieldset made checked safety toggles read as OFF. Disabled controls stay legible;
+   only their frame recedes, and a checked box keeps full contrast. */
+fieldset:disabled label{color:var(--muted)}
+fieldset:disabled input:not([type=checkbox]),fieldset:disabled select{opacity:.75;border-style:dashed}
+input[type=checkbox]:disabled{accent-color:var(--accent);opacity:1}
+.locked-note{display:block;margin-top:10px;font-size:11px;color:var(--muted);line-height:1.5}
 button{font:inherit;cursor:pointer;border-radius:5px;border:1px solid var(--line);color:var(--text);background:var(--panel);transition:background .15s,color .15s,border-color .15s}
 button:disabled{opacity:.5;cursor:not-allowed}
 .primary{background:var(--accent);color:var(--accent-ink);width:100%;border:0;padding:14px 18px;margin-top:26px;font-weight:650;text-align:left;display:flex;justify-content:space-between}
 .primary:hover:not(:disabled){background:var(--accent-hover)}
 .secondary{background:var(--accent-soft);color:var(--accent);padding:13px;width:100%;margin-top:15px;border-color:var(--accent-line)}
+/* Stopping is destructive, so it must not share the primary button's shape or position. */
+.stop-wrap{margin-top:26px}
+.danger{background:transparent;color:var(--down);border:1px solid var(--red-line);padding:11px 16px;font-size:12px}
+.danger:hover:not(:disabled){background:color-mix(in srgb,var(--down) 12%,transparent);border-color:var(--down)}
+.stop-confirm{margin-top:10px;padding:12px 14px;border:1px solid var(--red-line);border-radius:6px;background:color-mix(in srgb,var(--down) 7%,var(--panel))}
+.stop-confirm .hint{margin:0 0 10px}
+.stop-confirm-actions{display:flex;gap:8px;flex-wrap:wrap}
+.stop-confirm-actions button{flex:1;padding:9px 12px;font-size:12px;white-space:nowrap}
 .text-button{border:0;background:transparent;color:var(--accent);font-size:12px;padding:0}
 /* For actions that spend a request or refetch data: visible enough to find, quiet enough not to nag. */
 .action-button{background:var(--accent-soft);color:var(--accent);border:1px solid var(--line-strong);padding:8px 13px;font-size:12px;display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
@@ -186,11 +199,15 @@ button:disabled{opacity:.5;cursor:not-allowed}
 
 /* ---------- Desk top ---------- */
 .banner{padding:12px 16px;border-radius:5px;background:var(--banner-bg);border:1px solid var(--banner-line);color:var(--amber);font-size:11px;letter-spacing:.3px}
-.banner.live{color:var(--accent);background:var(--live-bg);border-color:var(--accent-line)}
+.banner.live{color:var(--up);background:color-mix(in srgb,var(--up) 10%,var(--panel));border-color:color-mix(in srgb,var(--up) 45%,var(--line))}
+.banner.warn{color:var(--amber);background:var(--banner-bg);border-color:var(--banner-line)}
+.banner.bad{color:var(--down);background:color-mix(in srgb,var(--down) 10%,var(--panel));border-color:var(--red-line)}
+.banner.idle{color:var(--muted);background:var(--panel);border-color:var(--line)}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;border-bottom:1px solid var(--line);padding:26px 0}
 .stats:empty{display:none}
 .stats span{font-size:11px;color:var(--muted);display:block;margin-bottom:10px}
-.stats strong{font-size:24px;font-weight:450;letter-spacing:-.7px}
+.stats strong{font-size:24px;font-weight:450;letter-spacing:-.7px;display:block}
+.stat-note{display:block;margin-top:6px;font-size:10px;color:var(--muted);line-height:1.4}
 .stats strong.positive{color:var(--up)}
 .stats strong.negative{color:var(--down)}
 .health-strip{display:flex;justify-content:space-between;gap:12px;padding:13px 0;color:var(--muted);font-size:10px;flex-wrap:wrap}
@@ -321,6 +338,9 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .agent-conclusion{border-top:1px solid var(--line);padding-top:10px;margin-top:12px;font-size:12px;line-height:1.55}
 .agent-conclusion strong{display:block;color:var(--muted);font-weight:550;font-size:10px;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px}
 .evidence-tools select{width:auto;padding:7px 10px;font-size:12px}
+.unverified{border-top:0;margin-top:4px;padding-top:0}
+.unverified>summary{padding:11px 14px;border:1px dashed var(--line-strong);border-radius:7px;color:var(--muted)}
+.unverified[open]>summary{margin-bottom:12px}
 .evidence{border:1px solid var(--line);border-radius:7px;padding:18px;margin-bottom:12px;min-width:0}
 .evidence a{color:var(--accent);text-decoration:none;line-height:1.5}
 .evidence a:hover{text-decoration:underline}
@@ -363,6 +383,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .trade .pnl{font-weight:550}
 .pnl.positive{color:var(--up)}
 .pnl.negative{color:var(--down)}
+.position-actions{margin-top:12px;padding-top:10px;border-top:1px solid var(--line);display:flex;gap:16px;flex-wrap:wrap}
 .fill-form{margin-top:15px}
 .fill-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 18px}
 #position-review{overflow-wrap:anywhere}
