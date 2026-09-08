@@ -50,6 +50,10 @@ DEFAULT = {'budget': 10000, 'risk_pct': 1, 'loss_limit_pct': 3, 'mode': 'live',
            'max_position_pct': 25, 'long_risk': 'balanced', 'long_months': 6, 'long_focus': '',
            'daily_ai_limit': 250}
 
+# Settings an open paper position's reserved capital and risk were sized against. Only these are
+# pinned while a position is open; everything else is operational and may change mid-position.
+CAPITAL_SETTINGS = ('budget', 'risk_pct', 'loss_limit_pct', 'max_position_pct', 'mode')
+
 
 def validate(data):
     if not isinstance(data, dict):
@@ -118,10 +122,10 @@ class Engine(PositionsMixin, ChatMixin, ChartAnalysisMixin):
                 pass
         open_trades = [t for t in self.trades if t['status'] == 'open']
         if open_trades:
-            self.config = validate(dict(open_trades[0]['config'], auto_position_review=self.config['auto_position_review'],
-                                        closed_market_ideas=self.config['closed_market_ideas'],
-                                        long_term_research=self.config['long_term_research'],
-                                        **{k: self.config[k] for k in ('long_risk', 'long_months', 'long_focus')}))
+            # An open paper position pins only what its reserved capital and risk were sized against.
+            # Research cadence, request caps and watchlist are operational and stay freely editable.
+            pinned = open_trades[0]['config']
+            self.config = validate(dict(self.config, **{k: pinned[k] for k in CAPITAL_SETTINGS if k in pinned}))
         self.running = False
         self.generation = 0
         self.scanning = False
@@ -409,8 +413,11 @@ class Engine(PositionsMixin, ChatMixin, ChartAnalysisMixin):
             if (self.running or self.scanning or self.researching or self.reviewing or self.position_reviewing
                 or self.outlook_running or self.long_researching or self.chat_running or self.chart_analyzing):
                 raise ValueError('Stop the session and wait for in-flight work to finish before starting again.')
-            if any(t['status'] == 'open' for t in self.trades) and config != self.config:
-                raise ValueError('Resume with the same settings while paper positions are open, or close them first.')
+            if (any(t['status'] == 'open' for t in self.trades)
+                    and any(config[k] != self.config[k] for k in CAPITAL_SETTINGS)):
+                raise ValueError('Budget, risk and position limits cannot change while paper positions are open, '
+                                 'because their reserved capital was sized against them. Close them first, or restore '
+                                 'the previous values. Research settings can be changed freely.')
             self.config, self.provider = config, provider
             with self.db() as db:
                 db.execute("INSERT OR REPLACE INTO settings VALUES ('session',?)", (json.dumps(config),))
