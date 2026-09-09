@@ -68,9 +68,10 @@ def validate(data):
         raise ValueError('Live market data is the only supported session mode.')
     config = dict(DEFAULT, **{k: v for k, v in data.items() if k in DEFAULT})
     # Ceilings are guardrails against a typo, not trading advice. Conventional discretionary risk is
-    # 1-2% per idea, but a long option reserves its entire premium, so small accounts need more room
-    # before any option can be sized at all.
-    for key, lo, hi in [('budget', 10, 10000000), ('risk_pct', .1, 25), ('loss_limit_pct', .5, 50),
+    # 1-2% per idea, but a long option reserves its entire premium, so small accounts need far more
+    # room before any option can be sized at all. 100% is permitted deliberately: it means one idea
+    # may risk the whole budget, which is a legitimate choice for a small speculative account.
+    for key, lo, hi in [('budget', 10, 10000000), ('risk_pct', .1, 100), ('loss_limit_pct', .5, 100),
                         ('max_position_pct', 5, 100), ('research_interval', 300, 3600), ('research_calls', 3, 300),
                         ('daily_ai_limit', 10, 2000)]:
         value = config[key]
@@ -1098,6 +1099,10 @@ def handler_for(engine):
                 if self.path == '/api/start':
                     engine.start(data)
                 elif self.path == '/api/stop':
+                    # Record what asked, so an unexpected stop can be traced to a tab or a script.
+                    agent = self.headers.get('User-Agent', 'unknown')
+                    engine.trace('Session', 'idle', 'Stop requested by ' + ('a browser tab' if 'Mozilla' in agent else 'a local script'),
+                                 {'user_agent': agent[:120], 'referer': self.headers.get('Referer', '')[:120]})
                     engine.stop()
                 elif self.path == '/api/market/refresh':
                     engine.request_market_refresh()

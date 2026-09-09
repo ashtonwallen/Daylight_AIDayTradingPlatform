@@ -21,6 +21,18 @@ class SizingLimitTests(unittest.TestCase):
         # Raising the position cap does not override per-idea risk.
         self.assertEqual(size(50, 48, 'stock', dict(config, max_position_pct=100), 10000, 300), 50)
 
+    def test_one_idea_may_risk_the_entire_budget(self):
+        # A small speculative account is allowed to put everything behind a single position.
+        allin = validate(dict(DEFAULT, budget=1000, risk_pct=100, loss_limit_pct=100, max_position_pct=100))
+        self.assertEqual(allin['risk_pct'], 100)
+        # A $1.24 contract reserves $124; $1,000 of allowance funds eight of them.
+        self.assertEqual(size(1.24, .87, 'option', allin, 1000, 1000), 8)
+        # Stocks size off entry-to-stop, so the whole budget backs the position.
+        self.assertEqual(size(50, 48, 'stock', allin, 1000, 1000), 20)
+        # The position cap still binds when it is left lower than the risk allowance.
+        capped = dict(allin, max_position_pct=25)
+        self.assertEqual(size(1.24, .87, 'option', capped, 1000, 1000), 2)
+
     def test_small_account_needs_headroom_for_a_single_contract(self):
         # A $1.24 contract reserves $124 of premium, so 2% of $1,000 can never fund one.
         small = dict(DEFAULT, budget=1000, risk_pct=2, max_position_pct=25)
@@ -32,7 +44,7 @@ class SizingLimitTests(unittest.TestCase):
         self.assertEqual(validate(DEFAULT)['max_position_pct'], 25)
         self.assertEqual(validate(dict(DEFAULT, risk_pct=20, loss_limit_pct=40))['risk_pct'], 20)
         for bad in ({'max_position_pct': 4}, {'max_position_pct': 101}, {'max_position_pct': 'half'},
-                    {'risk_pct': 26}, {'loss_limit_pct': 51}, {'risk_pct': 10, 'loss_limit_pct': 5}):
+                    {'risk_pct': 101}, {'loss_limit_pct': 101}, {'risk_pct': 10, 'loss_limit_pct': 5}):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 validate(dict(DEFAULT, **bad))
 

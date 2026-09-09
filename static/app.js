@@ -166,7 +166,8 @@ function limitsPreview() {
   if (loss < risk) note = 'Loss allowance must be at least the risk per idea.';
   else if ($('[name=asset][value=option]').checked && perIdea < 100)
     note = `A long option reserves its whole premium, so ${money(perIdea)} per idea only funds contracts under ${money(perIdea / 100)} per share. Raise Risk / idea % if option ideas never appear.`;
-  else if (maxPosition < perIdea) note = 'Max position size is below your per-idea risk, so it is the limit that will bind first.';
+  else if (maxPosition < perIdea) note = `Max position size (${money(maxPosition)}) is below your per-idea risk (${money(perIdea)}), so it binds first. Raise it to ${position < 100 ? Math.ceil(risk) + '%' : '100%'} to let one idea actually use that much.`;
+  else if (risk >= 100) note = 'One idea may risk the entire budget. There is no diversification left at this setting.';
   patch($('#limits-preview'), `<div><span>Most one idea may lose</span><b>${money(perIdea)}</b></div>
     <div><span>Most all ideas may lose today</span><b>${money(perDay)}</b></div>
     <div><span>Largest single position</span><b>${money(maxPosition)}</b></div>
@@ -351,7 +352,7 @@ const REASONS = [
   ['Quote older than 45 seconds', 'The latest bid/ask is more than 45 seconds old. Ideas are only built on prices that are current right now; this clears when a fresh quote arrives.'],
   ['Missing or invalid bid/ask', 'No usable two-sided quote is available, so there is no reliable price to plan an entry from.'],
   ['No displayed two-sided liquidity', 'Bid or ask size is zero. Without visible liquidity on both sides an entry estimate would be unreliable.'],
-  ['Bid/ask spread exceeds', 'The gap between bid and ask is too wide for this asset. Crossing a wide spread eats into the planned reward-to-risk before the trade even starts.'],
+  ['Bid/ask spread exceeds', 'The gap between bid and ask is too wide to plan an entry from. On the IEX feed this is usually the feed rather than the stock: IEX publishes only its own order book, so outside heavily-traded names the quote can be far wider than the real national best bid/offer. The entry reference uses the ask, so a fake-wide quote would produce a fake entry price. SIP data would show the consolidated quote.'],
   ['Warming up', 'The scanner needs 25 completed one-minute candles after the open before its trend, VWAP and volume readings mean anything.'],
   ['Completed candle is missing, stale, or still forming', 'The most recent finished minute candle has not arrived or is too old. For Bitcoin this usually means a quiet minute with no trades on Alpaca’s venue; it clears when trading resumes.'],
   ['Gaps or duplicate minute candles', 'Some minutes are missing or repeated in the last 25 candles. Indicators computed over a broken series are unreliable, so the scanner waits. Bitcoin feeds skip minutes without trades; this clears once volume returns.'],
@@ -1211,7 +1212,7 @@ function renderSettings(s) {
 
 // ---------- Help popups (hover/focus to read, tap to toggle, Escape to dismiss) ----------
 const HELP = {
-  risk:'Limit 1 of 3. The most a single idea is allowed to lose, as a percentage of your budget, which decides how many shares, contracts or BTC an idea is sized for. A stock or Bitcoin idea uses the entry-to-stop distance, so a $2 stop on a 1% / $10,000 budget allows 50 shares. A long option reserves its entire premium, because the premium is what you can lose, so one $1.20 contract needs $120 of this allowance. Set it too low and option ideas can never be sized at all. Conventional discretionary risk is 1-2%; the range here goes to 25% because small accounts cannot fund a single contract otherwise. Actual losses can exceed a stop estimate.',
+  risk:'Limit 1 of 3. The most a single idea is allowed to lose, as a percentage of your budget, which decides how many shares, contracts or BTC an idea is sized for. A stock or Bitcoin idea uses the entry-to-stop distance, so a $2 stop on a 1% / $10,000 budget allows 50 shares. A long option reserves its entire premium, because the premium is what you can lose, so one $1.20 contract needs $120 of this allowance. Set it too low and option ideas can never be sized at all. Conventional discretionary risk is 1-2%, but the range goes to 100% so a small speculative account can put its whole budget behind one idea. At 100% you are accepting that a single position can lose everything, and Max position size % must be raised to match or it will bind first. Actual losses can exceed a stop estimate.',
   loss:"Limit 2 of 3. The total this session may lose across every idea: this percentage of your budget, minus today's realized paper losses and the risk already reserved by open paper positions. At 3% of $10,000 it starts at $300, so three ideas risking $100 each exhaust it. It must be at least the per-idea risk. The day resets at midnight UTC. Reaching it stops new ideas; it never closes an open position for you.",
   'max-position':'Limit 3 of 3, and the one most often responsible for an idea that never appears. No single position may use more than this percentage of your budget in cash, regardless of how tight its stop is. At 25% of $10,000 that is $2,500, so a $650 share price allows at most 3 shares even if your risk allowance would permit more. Lower it to force diversification; raise it toward 100% if you deliberately want to concentrate on one position at a time.',
   budget:'The amount you choose to allocate to this workspace. Used for suggestion sizing; it is not your broker balance or verified buying power.',
