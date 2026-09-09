@@ -72,15 +72,15 @@ live API, and how many AI requests it cost.
   10-2000) instead of hardcoded, with a sidebar preview showing what a full session costs at the
   chosen cadence and how much budget is left today.
 - A missing OPRA entitlement is reported once as a single actionable line and not re-requested for
-  the rest of the session, instead of failing three times per scan for the whole day.
-- Confirmed against the live account: options are indicative-only (OPRA 403) and stocks are IEX
-  (SIP 403). Both recorded in `TODO.md`.
+  the rest of the session, instead of failing once per underlying on every scan.
+- Documented how free-tier feed limits surface: options require OPRA, and a single-exchange stock
+  feed reports spreads far wider than the real NBBO outside heavily traded names.
 
 ### Documentation
 - Added `AGENTS.md`: cross-model orientation covering hard rules, architecture, both loops, frontend
   conventions, provider quirks, persistence and testing.
 - Converted `todo.txt` to `TODO.md` with a single documented format, and split completed work into
-  this changelog. Working agreements moved into `AGENTS.md`.
+  this changelog. Project conventions moved into `AGENTS.md`.
 - Recorded that `static/extra.js` is orphaned.
 
 ## 0.5.0

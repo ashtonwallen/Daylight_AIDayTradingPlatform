@@ -1,9 +1,8 @@
 # TODO
 
-Open work only. Completed items move to `CHANGELOG.md`. Ideas that are not yet committed work live
-in `CREDITS_RESET_BACKLOG.md`. New here? Read `AGENTS.md` first.
+Open work only. Completed items move to `CHANGELOG.md`. New here? Read `AGENTS.md` first.
 
-**Format.** One item per bullet, newest concerns first within a section:
+**Format.** One item per bullet:
 
 ```
 - [ ] **Short title** — what to do and why it matters.
@@ -17,39 +16,41 @@ Tag with `(area)` — `market`, `research`, `ui`, `positions`, `infra` — so sc
 
 ## Priority
 
-- [ ] **(market) Decide what to do about options** — the Alpaca account has options data on the
-      **indicative** feed only; OPRA returns HTTP 403 "feed entitlement or permission missing".
-      The app deliberately refuses indicative quotes as unactionable, so **no option idea can ever
-      appear** on this plan.
-      Notes: verified 2026-09-07 by probing every options endpoint on both feeds. OPRA is denied
-      account-wide (403); indicative works even with the market closed, so this is an entitlement
-      gap, not a market-hours effect. Either add the paid OPRA subscription or uncheck Options.
-      The scan now reports one clear line and stops re-requesting for the session.
+- [ ] **(research) Identify intraday setups and name the likely outcome** — the tool currently
+      reports what is true right now; the harder and more useful thing is recognising a repeating
+      shape as it forms and saying what usually follows.
+      Notes: needs a written definition of the setup before any detector is worth building, a
+      deterministic implementation in `strategy.py`, and honest framing — this is a heuristic, not a
+      prediction, and it must not become a confident-sounding guess.
 
-- [ ] **(market) Stock data is IEX, not SIP** — SIP also returns 403, so quotes are one exchange's
-      book rather than the consolidated NBBO.
-      Notes: fine for liquid names (SPY spread measured at 0.018%), but expect more
-      "spread exceeds the liquidity limit" rejections on thinner symbols than SIP would produce.
+- [ ] **(feature) "Generate a position" on any research output** — every panel that produces
+      research should offer to turn it into a concrete play, and say plainly when there isn't one
+      worth taking.
+      Notes: `trade_plan.py` already assembles this for a researched thesis; the work is extending
+      it to long-horizon views, headline analyses and discovery leads without inventing a trade
+      where the evidence does not support one.
 
-- [ ] **(market) Decide whether indicative option quotes are usable for research** — the account
-      has options data on the indicative feed only, and the app refuses that feed everywhere, so a
-      thesis can never name a contract without an OPRA subscription.
-      Notes: refusing indicative for *live intraday ideas* is right, since those quotes are modified
-      and delayed. Whether a clearly-labelled indicative quote is acceptable for a *researched
-      thesis* candidate is a judgement call for the user. The stock path already has the pattern:
-      `strategy.quote_state` and `contracts.last_close` grade a price as fresh / reference / close
-      and label which basis was used.
+- [ ] **(ui) Move session chat into a persistent right panel** — so it stays available while you
+      navigate, mirroring the session panel on the left.
 
-- [ ] **(research) Identify intraday setups and call the likely outcome** — the point of this
-      tool is helping the user make money on timely decisions.
+- [ ] **(feature) Accept file uploads in chat and My positions** — PDFs, images, CSVs and text as
+      context. A broker screenshot should be usable to pre-fill logged positions.
+      Notes: sizeable piece of work. Uploaded files are untrusted input like any other external
+      text, and image parsing needs a provider that supports it. Skip if the lift is large.
 
-- [ ] **(feature) Generate Positions Button**  — Everything that has produces research should have a little button on that research that says something like "generate positions" and it comes up with an actual play based on the info. If theres no good suggestion, indicate that.  
-      
+## Data feeds
 
-- [ ] **(feature) Move session chat to a right panel**  — The chatbot interface should be sticked as the user navigates the product, similar to the "Your Session" panel. It can be on the right side while your session is on the left.
+- [ ] **(market) Consider making the spread gate feed-aware** — a single-exchange feed such as IEX
+      publishes only its own book, so quotes outside heavily traded names can be far wider than the
+      real national best bid/offer, and the scanner rejects them on spread.
+      Notes: the rejection is correct as it stands. The entry reference uses the ask, so accepting a
+      fake-wide quote would plan entries at prices that do not exist — **do not simply raise the
+      tolerance.** A defensible improvement would detect the feed and explain the cause, or compare
+      against the day's traded range before rejecting.
 
-- [ ] **(feature) Allow uploading resources to agent chat AND My Positions tab**  — User should be able to upload typical resources to be used contextually. PDFs, Images, text files, csv, etc. I trade on robinhood so id like to be able to send robinhood screenshots of my portfolio and have that be used for context in agent chat, or to autofill positions in the my positions section. If this is a huge lift then dont do it for now. 
-
-## Future
-
-- [ ] Earlier ideas are in `CREDITS_RESET_BACKLOG.md`. **Do not start them automatically.**
+- [ ] **(market) Decide whether delayed option quotes are usable for research** — the app refuses
+      indicative option data everywhere, which is right for live intraday ideas but arguably too
+      strict for a thesis assessed over weeks.
+      Notes: the grading pattern already exists. `strategy.quote_state` and `contracts.last_close`
+      classify a price as fresh / last-close reference / unusable and label which basis was used;
+      delayed data could join that scale rather than being refused outright.
