@@ -129,12 +129,6 @@ The parts that are deliberately hard to change:
 Everything is mocked; the suite never makes a live API call. The browser test drives the real UI end
 to end and asserts behavioural invariants, not snapshots.
 
-## Contributing
-
-`AGENTS.md` is the orientation document: architecture, how the scan and research loops fit together,
-frontend conventions, provider quirks worth knowing, and the rules that should not be broken. Read it
-before a first change. Open work is in `TODO.md`.
-
 ## Limitations
 
 This is a personal research tool, not a product. The strategy is a transparent heuristic that has not

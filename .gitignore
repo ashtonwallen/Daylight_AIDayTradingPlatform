@@ -10,3 +10,7 @@ node_modules/
 # Personal, installation-specific notes and scratch space
 LOCAL_NOTES.md
 CREDITS_RESET_BACKLOG.md
+
+# Local development notes
+/AGENTS.md
+/TODO.md

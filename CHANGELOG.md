@@ -1,14 +1,9 @@
 # Changelog
 
-Newest first. Development is cross-model, so every session adds an entry here describing what
-actually changed. Open work lives in `TODO.md`; orientation lives in `AGENTS.md`.
-
-Format: `## <version or date> — <headline>`, then grouped bullets. Note anything verified against a
-live API, and how many AI requests it cost.
-
----
-
 ## Unreleased
+
+### Documentation cleanup
+- Removed internal development notes and stale documentation links.
 
 ### UX review fixes
 - **Stopping no longer destroys anything and asks first.** Stop is a bordered danger button with a
@@ -75,13 +70,6 @@ live API, and how many AI requests it cost.
   the rest of the session, instead of failing once per underlying on every scan.
 - Documented how free-tier feed limits surface: options require OPRA, and a single-exchange stock
   feed reports spreads far wider than the real NBBO outside heavily traded names.
-
-### Documentation
-- Added `AGENTS.md`: cross-model orientation covering hard rules, architecture, both loops, frontend
-  conventions, provider quirks, persistence and testing.
-- Converted `todo.txt` to `TODO.md` with a single documented format, and split completed work into
-  this changelog. Project conventions moved into `AGENTS.md`.
-- Recorded that `static/extra.js` is orphaned.
 
 ## 0.5.0
 
