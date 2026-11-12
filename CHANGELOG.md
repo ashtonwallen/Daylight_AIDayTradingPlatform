@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Local market-data bridge
+- `MARKET_DATA_URL` points stocks and options at a read-only service on this computer instead of
+  Alpaca (`bridge.py`). It answers in Alpaca's shapes, so every freshness, spread and sizing check
+  runs unchanged. Bitcoin and news stay on Alpaca. Unset, nothing changes.
+
 ### Documentation cleanup
 - Removed internal development notes and stale documentation links.
 

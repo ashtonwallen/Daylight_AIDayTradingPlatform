@@ -29,6 +29,7 @@ def load_env():
 
 
 load_env()
+from bridge import live_provider
 from market import Alpaca, DataError, CHART_RANGES, now, stamp, age, describe_et
 from research import research_cycle, long_term_cycle, analyze_headline
 from strategy import make_ideas, quote_problem
@@ -346,7 +347,7 @@ class Engine(PositionsMixin, ChatMixin, ChartAnalysisMixin):
         with self.lock:
             provider=self.provider
             session=self.market_session
-        provider=provider or Alpaca()
+        provider=provider or live_provider()
         at=now()
         if symbol!='BTC/USD' and not session:
             # So a chart viewed without a running session can still say whether the market is open.
@@ -410,12 +411,14 @@ class Engine(PositionsMixin, ChatMixin, ChartAnalysisMixin):
                 'trades': list(reversed(self.trades[-100:])), 'available': available,
                 'risk_left': risk_left, 'paper_losses_today': losses,
                 'connections': {'alpaca': bool(os.getenv('APCA_API_KEY_ID') and os.getenv('APCA_API_SECRET_KEY')),
-                    'openai': bool(os.getenv('OPENAI_API_KEY')), 'stock_feed': os.getenv('ALPACA_STOCK_FEED', 'sip'),
-                    'option_feed': os.getenv('ALPACA_OPTION_FEED', 'opra')}, 'server_time': stamp(now())})
+                    'openai': bool(os.getenv('OPENAI_API_KEY')),
+                    'bridge': bool(os.getenv('MARKET_DATA_URL', '').strip()),
+                    'stock_feed': 'bridge' if os.getenv('MARKET_DATA_URL', '').strip() else os.getenv('ALPACA_STOCK_FEED', 'sip'),
+                    'option_feed': 'opra' if os.getenv('MARKET_DATA_URL', '').strip() else os.getenv('ALPACA_OPTION_FEED', 'opra')}, 'server_time': stamp(now())})
 
     def start(self, data):
         config = validate(data)
-        provider = Alpaca()
+        provider = live_provider()
         if config['research'] and not self.ai_paused and not ai.configured():
             raise ValueError('Configure an AI provider, pause AI, or disable AI research and its requirement.')
         with self.lock:
