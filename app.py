@@ -29,6 +29,7 @@ def load_env():
 
 
 load_env()
+import extras
 import optionsview
 import schwabdata
 from schwabdata import live_provider
@@ -118,6 +119,7 @@ class Engine(PositionsMixin, ChatMixin, ChartAnalysisMixin):
             db.execute('CREATE TABLE IF NOT EXISTS ai_usage (day TEXT PRIMARY KEY, requests INTEGER NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS reviews (id TEXT PRIMARY KEY, at TEXT, payload TEXT)')
             db.execute('CREATE TABLE IF NOT EXISTS outlooks (id TEXT PRIMARY KEY, at TEXT, payload TEXT)')
+            extras.init(db)
             outlook_rows=db.execute('SELECT payload FROM outlooks ORDER BY at DESC LIMIT 20').fetchall()
             rows = db.execute('SELECT payload FROM trades').fetchall()
             saved = db.execute("SELECT payload FROM settings WHERE name='session'").fetchone()
@@ -341,6 +343,38 @@ class Engine(PositionsMixin, ChatMixin, ChartAnalysisMixin):
         with self.lock:
             provider = self.provider
         return provider or live_provider()
+
+    def live_symbols(self):
+        with self.lock:
+            symbols = list(self.config['symbols'])
+            symbols += [t['underlying'] for t in self.trades if t['status'] == 'open']
+            symbols += [p['underlying'] for p in self.manual_view()]
+        return [s for s in symbols if s != 'BTC/USD']
+
+    def replay_item(self, data):
+        """A paper trade or a past idea, by id."""
+        if data.get('trade_id'):
+            with self.lock:
+                trade = next((t for t in self.trades if t['id'] == data['trade_id']), None)
+            if not trade:
+                raise ValueError('That paper trade no longer exists.')
+            return trade
+        with self.db() as db:
+            idea = extras.find_idea(db, data.get('idea_id'))
+        if not idea:
+            raise ValueError('That idea is no longer in the saved scans.')
+        return idea
+
+    def risk_positions(self):
+        """Open paper trades and logged positions in one shape for the what-if table."""
+        with self.lock:
+            rows = [{'symbol': t['symbol'], 'underlying': t['underlying'], 'asset': t['asset'], 'quantity': t['quantity'],
+                     'multiplier': t.get('multiplier', 1), 'mark': t.get('mark'), 'source': 'paper'}
+                    for t in self.trades if t['status'] == 'open']
+            rows += [{'symbol': p['symbol'], 'underlying': p['underlying'], 'asset': p['asset'], 'quantity': p['quantity'],
+                      'multiplier': p.get('multiplier', 1), 'mark': p.get('mark'), 'source': 'logged'}
+                     for p in self.manual_view()]
+        return rows
 
     def chart(self, symbol, span='1D', interval='auto'):
         """Historical bars for any supported ticker.
@@ -1132,12 +1166,40 @@ def handler_for(engine):
                     self.send(200, engine.chart(data.get('symbol'), data.get('span', '1D'), data.get('interval', 'auto')))
                     return
                 elif self.path == '/api/options':
-                    self.send(200, optionsview.chain(engine.data_provider(), data.get('symbol'), data.get('expiration')))
+                    view = optionsview.chain(engine.data_provider(), data.get('symbol'), data.get('expiration'))
+                    with engine.db() as db:
+                        extras.record_unusual(db, view['unusual'])
+                        view['unusual'] = extras.with_history(db, view['unusual'])
+                    self.send(200, view)
                     return
                 elif self.path == '/api/options/scan':
                     with engine.lock:
                         symbols = list(engine.config['symbols'])
-                    self.send(200, optionsview.scan(engine.data_provider(), symbols))
+                    result = optionsview.scan(engine.data_provider(), symbols)
+                    with engine.db() as db:
+                        extras.record_unusual(db, result['rows'])
+                        result['rows'] = extras.with_history(db, result['rows'])
+                        result['repeats'] = extras.repeats(db)
+                    self.send(200, result)
+                    return
+                elif self.path == '/api/live':
+                    self.send(200, extras.live(engine.data_provider(), engine.live_symbols()))
+                    return
+                elif self.path == '/api/brief':
+                    with engine.lock:
+                        symbols = list(dict.fromkeys(engine.config['symbols'] + ['SPY', 'QQQ']))
+                    with engine.db() as db:
+                        self.send(200, extras.brief(engine.data_provider(), symbols, db))
+                    return
+                elif self.path == '/api/replay/list':
+                    with engine.db() as db:
+                        self.send(200, {'ideas': extras.recent_ideas(db)})
+                    return
+                elif self.path == '/api/replay':
+                    self.send(200, extras.replay(engine.data_provider(), engine.replay_item(data)))
+                    return
+                elif self.path == '/api/risk':
+                    self.send(200, extras.what_if(engine.data_provider(), engine.risk_positions()))
                     return
                 elif self.path == '/api/book':
                     self.send(200, optionsview.book(engine.data_provider(), data.get('symbol')))

@@ -229,7 +229,9 @@ class Schwab(Bridge):
             if q:
                 quotes[symbol] = {'bid': number(q.get('bidPrice')), 'ask': number(q.get('askPrice')),
                                   'bidSize': number(q.get('bidSize')), 'askSize': number(q.get('askSize')),
-                                  'last': number(q.get('lastPrice')), 'quoteTime': number(q.get('quoteTime'))}
+                                  'last': number(q.get('lastPrice')), 'quoteTime': number(q.get('quoteTime')),
+                                  'tradeTime': number(q.get('tradeTime')), 'prevClose': number(q.get('closePrice')),
+                                  'changePct': number(q.get('netPercentChange'))}
         return {'quotes': quotes}
 
     def chain_data(self, params):

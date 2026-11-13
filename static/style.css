@@ -519,3 +519,23 @@ table.chain tr.atm td{border-top:1px solid var(--accent);border-bottom:1px solid
 .steps{margin:0 0 14px;padding-left:20px;font-size:13px;line-height:1.8;color:var(--label)}
 .steps a{color:var(--accent)}
 .data-panel{margin-bottom:28px}
+
+/* ---- Live prices, brief, replay, what-if ---- */
+.live-strip{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 18px}
+.live-strip:empty{display:none}
+.live-chip{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:6px;padding:7px 11px;font-size:12px;font-variant-numeric:tabular-nums}
+.live-chip b{margin-right:6px}
+.live-chip .positive,table.data td.positive{color:var(--up)}
+.live-chip .negative,table.data td.negative{color:var(--down)}
+h3.sub{font-size:13px;font-weight:500;color:var(--label);margin:22px 0 10px}
+table.data td.note{text-align:left;color:var(--muted)}
+table.data thead tr:first-child th[colspan]{text-align:center;color:var(--label)}
+.replay .level{stroke-width:1;stroke-dasharray:5 4}
+.replay .level.target{stroke:var(--up)}
+.replay .level.stop{stroke:var(--down)}
+.replay .level.entry{stroke:var(--muted)}
+.replay text.target{fill:var(--up)}
+.replay text.stop{fill:var(--down)}
+.replay path.calls{stroke:var(--text);stroke-width:1.5}
+.replay .hit{fill:var(--down)}
+.replay .hit.target{fill:var(--up)}

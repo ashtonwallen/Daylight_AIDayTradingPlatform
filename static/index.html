@@ -100,6 +100,7 @@
 
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="active" role="tab" aria-selected="false" aria-controls="overview" data-tab="overview">Overview</button>
+    <button role="tab" aria-selected="false" aria-controls="brief" data-tab="brief">Brief</button>
     <button role="tab" aria-selected="false" aria-controls="options" data-tab="options">Options</button>
     <button role="tab" aria-selected="false" aria-controls="book" data-tab="book">Order book</button>
     <button role="tab" aria-selected="false" aria-controls="idea-check" data-tab="idea-check">Idea check</button>
@@ -114,6 +115,7 @@
   <!-- Market desk -->
   <section id="overview" role="tabpanel" tabindex="0" class="tab-content">
     <div class="section-title"><h2 data-tip="Ideas are alternatives, not a combined portfolio. Sizes use available paper capital; verify your actual buying power. Ranking is a heuristic, not a win probability.">Current ideas</h2><span id="next-scan" class="muted">Waiting for your session</span></div>
+    <div id="live-strip" class="live-strip" aria-label="Live prices"></div>
     <div id="session-banner" class="session-banner" hidden></div>
     <div id="alerts" role="status"></div>
     <div id="ideas" class="ideas"></div>
@@ -182,6 +184,17 @@
     </section>
   </section>
 
+  <!-- Brief -->
+  <section id="brief" role="tabpanel" tabindex="0" class="tab-content" hidden>
+    <div class="section-title"><h2 data-tip="Where your watchlist stands against the last close, and the option contracts flagged in the previous session. Before the open the prices are pre-market trades. No AI requests.">Brief</h2><button id="brief-refresh" type="button" class="text-button">Refresh</button></div>
+    <p id="brief-status" class="hint"></p>
+    <p id="brief-error" class="form-error" role="alert"></p>
+    <h3 class="sub">Moves since the last close</h3>
+    <div id="brief-moves" class="scroll-x"></div>
+    <h3 class="sub" id="brief-unusual-title">Unusual options activity</h3>
+    <div id="brief-unusual" class="scroll-x"></div>
+  </section>
+
   <!-- Options -->
   <section id="options" role="tabpanel" tabindex="0" class="tab-content" hidden>
     <div class="section-title"><h2 data-tip="Calls on the left, puts on the right, one row per strike. The row nearest the share price is marked. Quotes outside market hours are the last ones before the close.">Option chain</h2><span id="options-status" class="muted"></span></div>
@@ -203,6 +216,10 @@
     <div class="section-title"><h2 data-tip="Contracts where today's volume is well above open interest, meaning more traded today than existed this morning. That is new positioning, but it does not say who is buying or why. Contracts expiring within two days are left out because they always look like this.">Unusual activity</h2><button id="options-scan" type="button" class="text-button">Scan watchlist</button></div>
     <p id="unusual-rule" class="hint"></p>
     <div id="unusual-list" class="scroll-x"></div>
+    <div id="unusual-repeats-wrap" hidden>
+      <div class="section-title"><h2 data-tip="Contracts flagged on two or more separate days in the last two weeks. A flag is saved each time you open a chain or scan the watchlist, so days you did not look are not counted.">Flagged on several days</h2></div>
+      <div id="unusual-repeats" class="scroll-x"></div>
+    </div>
   </section>
 
   <!-- Order book -->
@@ -269,6 +286,10 @@
     <div class="section-title"><h2 data-tip="Quotes refresh with live market scans, and outside market hours a position is valued at the last quote before the close. Agent reviews run only when you ask, unless you enable automatic reviews. Two agents agreeing is not independent evidence of profitability.">Open positions</h2><button id="review-positions" class="text-button">Review with AI · 2 AI requests</button></div>
     <label class="check"><input id="auto-positions" type="checkbox"> Automatically review on the research cadence (off by default)</label>
     <div id="manual-positions"></div>
+    <div class="section-title"><h2 data-tip="How much each open position would gain or lose if the share price moved 5% either way, today and one week from now. Covers paper trades and your logged trades. Option values come from a pricing model, so treat them as estimates.">What if</h2><button id="risk-run" type="button" class="text-button">Calculate</button></div>
+    <p id="risk-error" class="form-error" role="alert"></p>
+    <div id="risk-table" class="scroll-x"></div>
+    <p id="risk-note" class="hint"></p>
     <div id="position-review"></div>
     <details><summary>Trade history</summary><div id="fill-history"></div></details>
   </section>
@@ -313,6 +334,10 @@
     <div class="section-title"><h2 data-tip="&ldquo;Track on paper&rdquo; reserves hypothetical capital against an idea. Entry estimates use the ask; exits and marks use the bid. Fees, slippage, real brokerage positions and buying power are not modelled, and no fill is placed or guaranteed. Close estimates yourself: a stop or target crossing is an observation, never an automatic exit.">Paper trades</h2><button id="export" class="text-button">Export research and paper trades</button></div>
     <div id="journal-summary" class="stats"></div>
     <div id="trades"></div>
+    <div class="section-title"><h2 data-tip="What the shares did after an idea appeared, minute by minute, with its entry, stop and target drawn in. The result says which level was reached first. Option ideas show the shares and are not graded, because past option prices are not kept.">Replay</h2><span id="replay-status" class="muted"></span></div>
+    <p id="replay-error" class="form-error" role="alert"></p>
+    <div id="replay-panel" class="panel" hidden><p id="replay-summary" class="hint"></p><div id="replay-chart" class="smile replay"></div></div>
+    <details id="past-ideas-wrap"><summary>Past ideas</summary><div id="past-ideas" class="scroll-x"></div></details>
   </section>
 
   <!-- Activity / debug -->

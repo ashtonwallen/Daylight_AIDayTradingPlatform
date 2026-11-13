@@ -1037,11 +1037,10 @@ function renderJournal(s) {
   setText($('#trade-count'), String(j.open || 0));
   $('[data-tab="journal"]').title = `${j.open || 0} open paper position${j.open === 1 ? '' : 's'} · ${j.closed || 0} closed`;
   patch($('#journal-summary'), `<div><span>Open paper positions</span><strong>${j.open || 0}</strong></div><div><span>Capital reserved</span><strong>${money(j.reserved || 0)}</strong></div><div><span>Open estimated P/L</span><strong class="${j.unrealized === null ? '' : pnlClass(j.unrealized)}">${j.unrealized === null ? (j.open ? 'awaiting fresh quotes' : '—') : signedMoney(j.unrealized)}</strong></div><div><span>Closed estimates · realized</span><strong class="${pnlClass(j.net)}">${j.closed} · ${signedMoney(j.net)}</strong><small class="stat-note">${j.closed ? `${j.wins} of ${j.closed} positive — too small a sample to mean anything` : 'No closed estimates yet'}</small></div>`);
-  patch($('#trades'), s.trades.length ? s.trades.map(t => `<article class="trade"><div class="trade-head"><div><strong>${esc(t.symbol)}</strong> <span class="pill">${esc(t.status.toUpperCase())}${t.asset === 'option' ? ' · OPTION' : ''}</span></div>${t.status === 'open' ? `<button class="secondary" data-close="${esc(t.id)}">Close paper estimate</button>` : ''}</div>
+  patch($('#trades'), s.trades.length ? s.trades.map(t => `<article class="trade"><div class="trade-head"><div><strong>${esc(t.symbol)}</strong> <button type="button" class="text-button" data-replay-trade="${esc(t.id)}">Replay</button> <span class="pill">${esc(t.status.toUpperCase())}${t.asset === 'option' ? ' · OPTION' : ''}</span></div>${t.status === 'open' ? `<button class="secondary" data-close="${esc(t.id)}">Close paper estimate</button>` : ''}</div>
     <p class="hint">${esc(t.quantity)} × ${money(t.entry)} ${t.asset === 'option' ? '× 100' : ''} · capital ${money(t.notional)} · risk reserved ${money(t.risk)} · stop ${money(t.stop)} · target ${money(t.target)}<br>Opened ${esc(new Date(t.opened_at).toLocaleString())}${t.closed_at ? ' · closed ' + esc(new Date(t.closed_at).toLocaleString()) : ''}</p>
     <p>${t.status === 'closed' ? `Estimated P/L <span class="pnl ${pnlClass(t.pnl)}">${signedMoney(t.pnl)}</span> · exit ${money(t.exit)}` : `${esc(t.mark_status)} · ${t.marked_at && Date.now() - Date.parse(t.marked_at) < 45000 ? 'estimated open P/L <span class="pnl ' + pnlClass(t.unrealized) + '">' + signedMoney(t.unrealized) + '</span> at ' + money(t.mark) : 'fresh valuation unavailable'}`}</p></article>`).join('')
-    : '<div class="empty"><h3>No paper ideas are being tracked.</h3><p>Select Track on paper on an idea to monitor its hypothetical outcome.</p></div>');
-  setText($('#export'), 'Export research & journal ↗');
+    : '<div class="empty"><h3>No paper trades</h3><p>Choose Track on paper on an idea to follow it here.</p></div>');
 }
 $('#export').onclick = async () => {
   try {
@@ -1105,7 +1104,7 @@ function renderPositions(s) {
   patch($('#positions-summary'), sum && (sum.open || sum.realized) ? `<div><span>Open logged positions</span><strong>${sum.open}</strong></div><div><span>Cost basis</span><strong>${money(sum.cost_basis)}</strong></div><div><span>Unrealized · fresh marks only</span><strong class="${sum.unrealized === null ? '' : pnlClass(sum.unrealized)}">${sum.unrealized === null ? (sum.open ? 'awaiting fresh quotes' : '—') : signedMoney(sum.unrealized)}</strong></div><div><span>Realized from logged sales</span><strong class="${pnlClass(sum.realized)}">${signedMoney(sum.realized)}</strong></div>` : '');
   const positions = s.manual_positions || [];
   patch($('#manual-positions'), positions.length ? positions.map(p => `<article class="trade"><div class="trade-head"><strong>${esc(p.symbol)}</strong><span class="pill ${p.mark_state === 'unusable' ? 'bad' : p.mark_state === 'reference' ? 'warn' : ''}">USER-REPORTED · ${esc(p.asset)}${p.mark_state === 'reference' ? ' · LAST CLOSE' : ''}</span></div><p>${p.quantity.toLocaleString('en-US', {maximumFractionDigits:8})} units · average fill ${money(p.average_price)}${p.asset === 'option' ? ' × 100 shares/contract' : ''}</p><p class="hint">Cost basis ${money(p.cost_basis)} · ${p.mark === null ? 'Valuation unavailable' : (p.mark_state === 'reference' ? 'last-close mark ' : 'mark ') + money(p.mark) + ' · unrealized <span class="pnl ' + pnlClass(p.unrealized_pnl) + '">' + signedMoney(p.unrealized_pnl) + '</span>'}<br>Planned stop ${p.stop ? money(p.stop) : 'not logged'} · ${esc(p.data_status)}</p><div class="position-actions"><button type="button" class="text-button" data-close-position="${esc(p.symbol)}">Log a closing sale</button></div></article>`).join('')
-    : '<div class="empty"><h3>Your real trades, in one place.</h3><p>Translate a fill or enter its fields manually.<br>Nothing here places an order.</p></div>');
+    : '<div class="empty"><h3>No trades logged</h3><p>Describe a trade above or fill in the form.<br>Nothing here places an order.</p></div>');
   const review = s.position_review || {status:'idle'};
   let html = review.message ? `<p class="hint">${esc(review.message)}</p>` : '';
   if (review.status === 'running') html = '<div class="alert">Position analyst and risk reviewer are assessing your positions. Follow them under Activity.</div>';
@@ -1293,8 +1292,8 @@ async function loadOptions(expiration) {
 }
 function unusualTable(rows, empty) {
   if (!rows.length) return `<p class="hint">${esc(empty)}</p>`;
-  return `<table class="data"><thead><tr><th>Contract</th><th>Volume</th><th>Open interest</th><th>Volume ÷ OI</th><th>Value traded</th><th>Strike vs price</th><th>Implied vol</th></tr></thead><tbody>${rows.map(r =>
-    `<tr><td><b>${esc(r.underlying)}</b> ${price(r.strike)} ${esc(r.type)} · ${shortDate(r.expiration)} <span class="muted">${r.days}d</span></td><td>${whole(r.volume)}</td><td>${whole(r.open_interest)}</td><td>${r.ratio}×</td><td>${r.premium == null ? '–' : compact(r.premium)}</td><td>${r.distance_pct == null ? '–' : (r.distance_pct > 0 ? '+' : '') + r.distance_pct + '%'}</td><td>${r.iv == null ? '–' : r.iv.toFixed(0) + '%'}</td></tr>`).join('')}</tbody></table>`;
+  return `<table class="data"><thead><tr><th>Contract</th><th>Volume</th><th>Open interest</th><th>Volume ÷ OI</th><th>Value traded</th><th>Strike vs price</th><th>Implied vol</th><th>Days flagged</th></tr></thead><tbody>${rows.map(r =>
+    `<tr><td><b>${esc(r.underlying)}</b> ${price(r.strike)} ${esc(r.type)} · ${shortDate(r.expiration)} <span class="muted">${r.days}d</span></td><td>${whole(r.volume)}</td><td>${whole(r.open_interest)}</td><td>${r.ratio}×</td><td>${r.premium == null ? '–' : compact(r.premium)}</td><td>${r.distance_pct == null ? '–' : (r.distance_pct > 0 ? '+' : '') + r.distance_pct + '%'}</td><td>${r.iv == null ? '–' : r.iv.toFixed(0) + '%'}</td><td>${r.days_flagged || '–'}</td></tr>`).join('')}</tbody></table>`;
 }
 function smile(view) {
   const pts = kind => view.rows.filter(r => r[kind]?.iv != null).map(r => [r.strike, r[kind].iv]);
@@ -1332,6 +1331,8 @@ function renderOptions() {
       `<tr class="${r === atm ? 'atm' : ''}">${cells(r.call, callOrder).replace(/<td>/g, `<td class="${r.strike < v.underlying ? 'itm' : ''}">`)}<td class="strike">${price(r.strike)}</td>${cells(r.put, putOrder).replace(/<td>/g, `<td class="${r.strike > v.underlying ? 'itm' : ''}">`)}</tr>`).join('')}</tbody></table>`);
   }
   const scan = unusualScan;
+  $('#unusual-repeats-wrap').hidden = !scan?.repeats?.length;
+  if (scan?.repeats?.length) patch($('#unusual-repeats'), unusualTable(scan.repeats, ''));
   setText($('#unusual-rule'), scan?.rule ? scan.rule + (scan.errors.length ? ' · ' + scan.errors.join(' · ') : '') : '');
   patch($('#unusual-list'), scan ? unusualTable(scan.rows, `Nothing unusual across ${scan.symbols.join(', ')}.`)
     : v ? unusualTable(v.unusual, `Nothing unusual in ${v.symbol} for the next 60 days.`) : '');
@@ -1405,6 +1406,92 @@ $('#schwab-form').onsubmit = async e => {
   catch (err) { setText($('#schwab-message'), err.message); }
 };
 $('#schwab-disconnect').onclick = async () => { try { await post('/api/schwab/disconnect'); setText($('#schwab-message'), 'Disconnected.'); } catch (err) { setText($('#schwab-message'), err.message); } };
+
+
+// ---------- Live prices, brief, replay, what-if ----------
+const pct = n => n == null ? '–' : (n > 0 ? '+' : '') + Number(n).toFixed(2) + '%';
+let liveBusy = false;
+async function pollLive() {
+  if (liveBusy || document.hidden || !connected || !state || state.connections.data_source === 'alpaca' || store.get('daylight-tab', 'overview') !== 'overview') return;
+  liveBusy = true;
+  try {
+    const d = await ask('/api/live');
+    patch($('#live-strip'), Object.entries(d.quotes).map(([s, q]) => `<button type="button" class="live-chip" data-live="${esc(s)}"><b>${esc(s)}</b> ${price(q.last)} <span class="${pnlClass(q.change_pct)}">${pct(q.change_pct)}</span></button>`).join(''));
+  } catch { patch($('#live-strip'), ''); }
+  liveBusy = false;
+}
+$('#live-strip').onclick = e => { const b = e.target.closest('[data-live]'); if (b) selectChart(b.dataset.live); };
+setInterval(pollLive, 3000);
+
+let briefLoading = false;
+async function loadBrief() {
+  if (briefLoading || !connected) return;
+  briefLoading = true; setText($('#brief-error'), ''); setText($('#brief-status'), 'Loading…');
+  try {
+    const b = await ask('/api/brief');
+    const sess = b.session;
+    const when = !sess ? '' : sess.is_open ? `Market open · closes ${etTime(sess.next_close)}` : `Market closed · opens ${etTime(sess.next_open, true)}`;
+    setText($('#brief-status'), `${when}${when ? ' · ' : ''}as of ${time(b.at)}${b.missing.length ? ' · no quote for ' + b.missing.join(', ') : ''}`);
+    patch($('#brief-moves'), b.moves.length ? `<table class="data"><thead><tr><th>Symbol</th><th>Last</th><th>Previous close</th><th>Change</th><th>Last 5 sessions</th></tr></thead><tbody>${b.moves.map(m =>
+      `<tr><td><b>${esc(m.symbol)}</b></td><td>${price(m.last)}</td><td>${price(m.prev_close)}</td><td class="${pnlClass(m.gap_pct)}">${pct(m.gap_pct)}</td><td class="${pnlClass(m.five_day_pct)}">${pct(m.five_day_pct)}</td></tr>`).join('')}</tbody></table>` : '<p class="hint">No quotes returned.</p>');
+    setText($('#brief-unusual-title'), b.unusual_day ? `Unusual options activity · ${shortDate(b.unusual_day)}` : 'Unusual options activity');
+    patch($('#brief-unusual'), b.unusual_day ? unusualTable(b.unusual, 'Nothing was flagged.') : '<p class="hint">Nothing saved yet. Flags are saved when you open a chain or scan the watchlist on the Options tab.</p>');
+  } catch (e) { setText($('#brief-status'), ''); setText($('#brief-error'), e.message); }
+  briefLoading = false;
+}
+$('#brief-refresh').onclick = loadBrief;
+$('[data-tab="brief"]').addEventListener('click', loadBrief);
+
+function replayChart(r) {
+  const bars = r.bars;
+  if (bars.length < 2) return '<p class="hint">No minute bars for that period.</p>';
+  const lv = r.levels ? Object.values(r.levels) : [];
+  const lo = Math.min(...bars.map(b => b.l), ...lv), hi = Math.max(...bars.map(b => b.h), ...lv), pad = (hi - lo) * 0.06 || 1;
+  const W = 900, H = 260, L = 56, B = 22, t0 = Date.parse(bars[0].t), t1 = Date.parse(bars.at(-1).t);
+  const x = t => L + (Date.parse(t) - t0) / (t1 - t0 || 1) * (W - L - 70), y = v => 8 + (1 - (v - (lo - pad)) / (hi - lo + 2 * pad)) * (H - B - 8);
+  const line = bars.map((b, i) => (i ? 'L' : 'M') + x(b.t).toFixed(1) + ',' + y(b.c).toFixed(1)).join('');
+  const level = (name, v, cls) => v == null ? '' : `<line class="level ${cls}" x1="${L}" x2="${W - 70}" y1="${y(v)}" y2="${y(v)}"/><text class="${cls}" x="${W - 66}" y="${y(v) + 4}">${name} ${price(v)}</text>`;
+  const start = Date.parse(r.start) >= t0 && Date.parse(r.start) <= t1 ? `<line class="spot" x1="${x(r.start)}" x2="${x(r.start)}" y1="8" y2="${H - B}"/><text class="spot-label" x="${x(r.start) + 5}" y="18">idea</text>` : '';
+  const hit = r.outcome?.at ? `<circle class="hit ${r.outcome.result}" cx="${x(r.outcome.at)}" cy="${y(r.outcome.result === 'target' ? r.levels.target : r.levels.stop)}" r="5"/>` : '';
+  const ticks = [lo, (lo + hi) / 2, hi].map(v => `<text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${price(v)}</text>`).join('');
+  const xt = [bars[0].t, bars.at(-1).t].map((t, i) => `<text x="${x(t)}" y="${H - 6}" text-anchor="${i ? 'end' : 'start'}">${etTime(t)}</text>`).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Replay for ${esc(r.underlying)}">${ticks}${xt}${r.levels ? level('Target', r.levels.target, 'target') + level('Entry', r.levels.entry, 'entry') + level('Stop', r.levels.stop, 'stop') : ''}${start}<path class="calls" d="${line}"/>${hit}</svg>`;
+}
+async function runReplay(data, label) {
+  setText($('#replay-error'), ''); setText($('#replay-status'), 'Loading…');
+  try {
+    const r = await ask('/api/replay', data);
+    const o = r.outcome, words = {target:'Target reached first', stop:'Stop reached first', both:'Stop and target were both touched in the same minute', neither:'Neither level reached in this period'};
+    setText($('#replay-status'), label);
+    setText($('#replay-summary'), `${r.symbol} · ${r.direction || ''} · started ${etTime(r.start, true)}` + (o ? ` · ${words[o.result]}${o.minutes != null ? ' after ' + o.minutes + ' min' : ''}` : '') + (r.note ? ' · ' + r.note : ''));
+    patch($('#replay-chart'), replayChart(r));
+    $('#replay-panel').hidden = false;
+    $('#replay-panel').scrollIntoView({block:'nearest'});
+  } catch (e) { setText($('#replay-status'), ''); setText($('#replay-error'), e.message); }
+}
+$('#trades').addEventListener('click', e => { const b = e.target.closest('[data-replay-trade]'); if (b) runReplay({trade_id:b.dataset.replayTrade}, 'Paper trade'); });
+$('#past-ideas').onclick = e => { const b = e.target.closest('[data-replay-idea]'); if (b) runReplay({idea_id:b.dataset.replayIdea}, 'Past idea'); };
+$('#past-ideas-wrap').addEventListener('toggle', async e => {
+  if (!e.target.open) return;
+  try {
+    const d = await ask('/api/replay/list');
+    patch($('#past-ideas'), d.ideas.length ? `<table class="data"><thead><tr><th>Idea</th><th>When</th><th>Entry</th><th>Stop</th><th>Target</th><th></th></tr></thead><tbody>${d.ideas.map(i =>
+      `<tr><td><b>${esc(i.symbol)}</b> ${esc(i.direction || '')}</td><td>${etTime(i.created_at, true)}</td><td>${price(i.entry)}</td><td>${price(i.stop)}</td><td>${price(i.target)}</td><td><button type="button" class="text-button" data-replay-idea="${esc(i.id)}">Replay</button></td></tr>`).join('')}</tbody></table>` : '<p class="hint">No ideas saved yet.</p>');
+  } catch (err) { setText($('#replay-error'), err.message); }
+});
+
+$('#risk-run').onclick = async () => {
+  const b = $('#risk-run'); b.disabled = true; setText($('#risk-error'), '');
+  try {
+    const d = await ask('/api/risk');
+    const cell = v => `<td class="${pnlClass(v)}">${signedMoney(v)}</td>`;
+    patch($('#risk-table'), d.rows.length ? `<table class="data"><thead><tr><th rowspan="2">Position</th><th rowspan="2">Value now</th><th colspan="3">Today, if shares move</th><th colspan="3">In ${d.later_days} days, if shares move</th></tr><tr><th>−5%</th><th>0%</th><th>+5%</th><th>−5%</th><th>0%</th><th>+5%</th></tr></thead><tbody>${d.rows.map(r =>
+      `<tr><td><b>${esc(r.symbol)}</b> <span class="muted">${r.source === 'paper' ? 'paper' : 'logged'}${r.implied_vol_pct ? ' · implied vol ' + r.implied_vol_pct + '% · ' + r.days_left + ' days left' : ''}</span></td>` +
+      (r.scenarios ? `<td>${money(r.value)}</td>${r.scenarios.map(s => cell(s.today)).join('')}${r.scenarios.map(s => cell(s.later)).join('')}` : `<td colspan="7" class="note">${esc(r.note)}</td>`) + '</tr>').join('')}</tbody></table>` : '<p class="hint">No open positions.</p>');
+    setText($('#risk-note'), d.rows.some(r => r.implied_vol_pct) ? d.assumptions : '');
+  } catch (e) { setText($('#risk-error'), e.message); }
+  b.disabled = false;
+};
 
 function render() {
   const s = state;

@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Brief, live prices, replay, flag history, what-if
+- **Brief tab.** Watchlist moves against the last close and over five sessions, plus the option
+  contracts flagged in the previous session. No AI requests.
+- **Live prices.** A price strip on Overview refreshes every 3 seconds. Idea scans stay on completed
+  one-minute candles, because that is what the checks are defined on.
+- **Replay.** Any paper trade or past idea can be replayed minute by minute with entry, stop and
+  target drawn in, and a result saying which level came first. Option ideas show the shares, ungraded.
+- **Unusual activity history.** Flags are saved per session; the table shows how many days a
+  contract has been flagged and lists the ones flagged on several days.
+- **What if.** For open paper and logged positions: gain or loss if the shares move 5% either way,
+  today and in a week. Options use Black-Scholes at today's implied volatility (`extras.py`).
+- These need Schwab data (your own key or a local service); on Alpaca they say so.
+
 ### Schwab data, options and order book
 - **Schwab with your own key.** `SCHWAB_APP_KEY` and `SCHWAB_APP_SECRET` plus a login from Settings
   switch stocks and options to the Schwab Trader API (`schwabdata.py`). Market data only; the

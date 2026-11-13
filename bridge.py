@@ -150,6 +150,13 @@ class Bridge(Alpaca):
         """Every contract between two dates, with volume, open interest and greeks."""
         return self.fetch('/chain', {'symbol': symbol, 'strikes': strikes, 'start': str(start), 'end': str(end)})
 
+    def live_quotes(self, symbols):
+        """Last price and previous close per symbol, for views that refresh every few seconds."""
+        found = self.fetch('/quotes', {'symbols': ','.join(symbols)}).get('quotes', {})
+        return {s: {'last': q.get('last'), 'bid': q.get('bid'), 'ask': q.get('ask'), 'prev_close': q.get('prevClose'),
+                    'change_pct': q.get('changePct'), 'time': from_ms(q.get('tradeTime') or q.get('quoteTime'))}
+                for s, q in found.items()}
+
     def order_book(self, symbol):
         return self.fetch('/book', {'symbol': symbol, 'depth': 25})
 
