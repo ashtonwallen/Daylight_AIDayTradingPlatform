@@ -14,6 +14,13 @@
 - **AI review.** One request sends the signals, their history, index moves, session news and
   research, and option flags to the selected model and asks what they add up to (`analyst.py`).
   It may mark a signal worth acting on only where the rules already produced a plan.
+- **AI trade suggestions, tested before they are shown as kept.** The review may propose up to
+  three purchases (shares, a call or a put). Code re-prices each at the live quote, picks the option
+  contract by rule, sizes it to the session limits and rejects what does not fit. A second request
+  then gives the model the measured evidence for each one (pricing, every signal in that stock,
+  how often those signals fired together before and what followed, the day's move, option
+  activity) and asks it to try to knock its own suggestions down, with a news check. A suggestion
+  the checks rejected can never come back as kept.
 
 ### Brief, live prices, replay, flag history, what-if
 - **Brief tab.** Watchlist moves against the last close and over five sessions, plus the option

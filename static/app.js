@@ -1520,13 +1520,31 @@ function signalCard(e, read) {
   return `<article class="signal ${cls}"><div class="signal-head"><div><strong>${esc(e.symbol)}</strong> ${esc(e.what)}${e.level != null ? ' <span class="muted">(' + price(e.level) + ')</span>' : ''}</div><span class="muted">${esc(e.time)} ET</span></div>
     <p class="verdict ${cls}">${verdict}${e.verdict === 'continues' || e.verdict === 'fades' ? ' · ' + esc(e.lean) : ''}</p><p class="hint">${facts}</p>${plan}${ai}</article>`;
 }
+function tradeCards(trades) {
+  const head = '<div class="section-title"><h2 data-tip="Proposed by the AI from the signals and the wider picture, then checked by code: re-priced against the live quote, the option contract chosen by rule, and sized to your budget and risk settings. A suggestion that fails a check is shown with the reason. You decide and place any trade yourself.">Trade suggestions</h2><span class="muted">Proposed, then tested against the evidence</span></div>';
+  if (!trades.length) return head + '<p class="hint">The AI suggested no trade. That is the usual answer.</p>';
+  const WORDS = {shares:'Buy shares', call:'Buy a call', put:'Buy a put'};
+  return head + trades.map(t => {
+    const c = t.check || {}, ok = c.status === 'ok';
+    const closed = ok && c.quote_state && c.quote_state !== 'fresh' ? '<p class="hint">Priced from the last quote before the close. Recheck at the open.</p>' : '';
+    const detail = !ok ? `<p class="hint rejected">Did not pass the checks: ${esc(c.reason || 'unknown reason')}</p>`
+      : t.instrument === 'shares' ? `<div class="levels"><div><span>Buy</span><strong>${whole(c.quantity)} sh at ${price(c.entry)}</strong></div><div><span>Stop</span><strong>${price(c.stop)}</strong></div><div><span>Target</span><strong>${price(c.target)}</strong></div><div><span>Cost · at risk</span><strong>${money(c.cost)} · ${money(c.risk)}</strong></div></div>${closed}`
+      : `<div class="levels"><div><span>Contract</span><strong>${price(c.strike)} ${t.instrument} · ${shortDate(c.expiration)}</strong></div><div><span>Premium</span><strong>${price(c.premium)}</strong></div><div><span>Quantity</span><strong>${whole(c.quantity)}</strong></div><div><span>Cost · all at risk</span><strong>${money(c.cost)}</strong></div></div>${closed}`;
+    const test = t.test || {}, kept = ok && test.verdict === 'keep';
+    const label = !ok ? 'Rejected by checks' : test.verdict === 'keep' ? 'Kept after testing' + (test.confidence ? ' · ' + test.confidence + ' confidence' : '') : test.verdict === 'drop' ? 'Dropped after testing' : 'Not tested';
+    const j = t.joint, joint = j ? `<p class="hint">These signals together: ${j.cases} past case${j.cases === 1 ? '' : 's'} in ${j.sessions} sessions${j.cases ? ` · price then went the trade's way ${j.went_the_trade_way_pct}% of the time · median move to the close ${pct(j.median_to_close_pct)}` : ''}${j.enough ? '' : ' · too few to rely on'}</p>` : '';
+    const links = (test.sources || []).map(s => `<a href="${url(s)}" target="_blank" rel="noopener noreferrer">${esc(sourceHost(s) || 'source')}</a>`).join(' · ');
+    const tested = test.tested ? `<div class="ai-read"><p>${esc(test.tested)}</p>${links ? `<p class="hint">Sources named by the AI, not verified by Daylight: ${links}</p>` : ''}</div>` : '';
+    return `<article class="signal ${kept ? 'lean' : ''}"><div class="signal-head"><div><strong>${esc(t.symbol)}</strong> ${WORDS[t.instrument]}</div><span class="pill ${kept ? 'good' : !ok || test.verdict === 'drop' ? 'bad' : 'warn'}">${label}</span></div><p class="ai-reason">${esc(t.reason)}</p>${detail}${joint}${tested}</article>`;
+  }).join('');
+}
 function renderSignals() {
   const d = signalData, review = state?.signal_review || {};
   const b = $('#signals-review');
   b.disabled = !d || !d.events.length || state?.ai_paused || state?.signal_reviewing;
-  if (state?.signal_reviewing) setText(b, 'Reviewing…'); else if (b.textContent === 'Reviewing…') b.innerHTML = 'Review with AI <span class="cost">1 AI request</span>';
+  if (state?.signal_reviewing) setText(b, 'Reviewing…'); else if (b.textContent === 'Reviewing…') b.innerHTML = 'Review with AI <span class="cost">1–2 AI requests</span>';
   const reads = review.status === 'complete' && d && review.date === d.date ? Object.fromEntries(review.reads.map(r => [r.id, r])) : {};
-  patch($('#signals-review-result'), review.status === 'complete' ? `<section class="panel ai-overview"><h3>AI review · ${time(review.at)}${review.web ? ' · with web search' : ''}</h3><p>${esc(review.overview)}</p>${review.reads.length ? '' : '<p class="hint">It singled out no individual signal.</p>'}</section>`
+  patch($('#signals-review-result'), review.status === 'complete' ? `<section class="panel ai-overview"><h3>AI review · ${time(review.at)}${review.web ? ' · with web search' : ''}</h3><p>${esc(review.overview)}</p>${review.reads.length ? '' : '<p class="hint">It singled out no individual signal.</p>'}</section>${tradeCards(review.trades || [])}`
     : review.status === 'error' ? `<div class="alert">${esc(review.message)}</div>` : review.status === 'running' ? '<div class="alert">The AI is reading the signals against the wider market. This takes up to a minute.</div>' : '');
   if (!d) return;
   const leaning = d.events.filter(e => e.verdict === 'continues' || e.verdict === 'fades');

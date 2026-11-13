@@ -556,3 +556,5 @@ table.data thead tr:first-child th[colspan]{text-align:center;color:var(--label)
 .ai-overview h3{margin:0 0 8px;font-size:13px}
 .ai-overview p{margin:0;line-height:1.6;font-size:13px}
 #signals-top{margin-bottom:18px}
+.signal .ai-reason{margin:8px 0 4px;font-size:13px;line-height:1.55}
+.signal .hint.rejected{color:var(--red)}

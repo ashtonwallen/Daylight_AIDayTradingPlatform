@@ -337,3 +337,24 @@ def plan(event, last, day_range, config, available, risk_left):
     return {'side': 'up', 'entry': round(last, 2), 'stop': stop, 'target': target, 'quantity': quantity,
             'cost': round(quantity * last, 2), 'risk': round(quantity * (last - stop), 2),
             'reward': round(quantity * (target - last), 2)}
+
+
+def joint_rate(bars, keys, direction):
+    """Past sessions in which every one of these events fired, and what the price did after the last of them."""
+    sessions = sessions_from(bars)
+    returns = []
+    for index in range(1, len(sessions)):
+        ctx = context(sessions[:index])
+        if not ctx:
+            continue
+        found = {e['key']: e for e in detect(sessions[index], ctx)}
+        if not keys or any(k not in found for k in keys):
+            continue
+        last = max((found[k] for k in keys), key=lambda e: e['slot'])
+        if last['slot'] < SLOTS - 1:
+            returns.append(sessions[index]['close'] / last['price'] - 1)
+    n = len(returns)
+    return {'signals': list(keys), 'cases': n, 'sessions': max(len(sessions) - 1, 0),
+            'went_the_trade_way_pct': round(100 * sum(direction * r > 0 for r in returns) / n) if n else None,
+            'median_to_close_pct': round(100 * median(returns), 2) if n else None,
+            'enough': n >= MIN_CASES}
