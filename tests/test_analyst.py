@@ -53,3 +53,14 @@ class AnalystTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class CitationMarkerTests(unittest.TestCase):
+    def test_claude_citation_markers_are_removed_and_their_text_and_sources_kept(self):
+        import ai
+        reply = {'stop_reason': 'end_turn', 'content': [
+            {'type': 'text', 'text': '{"overview": "<cite index=\'1-4,1-6\'>Shares fell</cite> and <CITE index="2-1">the VIX rose</cite>. A < B stays."}',
+             'citations': [{'url': 'https://example.com/a', 'title': 'A'}]}]}
+        result = ai.normalize('anthropic', reply)
+        self.assertEqual(ai.extract_json(ai.response_text(result)), {'overview': 'Shares fell and the VIX rose. A < B stays.'})
+        self.assertEqual(result['output'][0]['action']['sources'], [{'url': 'https://example.com/a', 'title': 'A'}])

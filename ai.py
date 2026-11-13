@@ -131,6 +131,9 @@ def complete(instructions, data, web=False, domains=None, max_tokens=3000, can_s
     except (ValueError,TypeError,KeyError,IndexError):raise DataError(f'{config["label"]} returned an invalid response.') from None
 
 
+CITE_TAG=re.compile(r'</?cite\b[^>]*>',re.IGNORECASE)
+
+
 def normalize(provider, result):
     if provider=='openai':return result
     texts,sources,reason=[],[],None
@@ -139,7 +142,10 @@ def normalize(provider, result):
         completed=reason=='end_turn'
         for block in result.get('content',[]):
             if block.get('type')=='text':
-                texts.append(block.get('text',''))
+                # With web search, Claude can write its citation markers into the text itself
+                # (<cite index="1-4,1-6">...</cite>). The sources arrive separately below, so the
+                # markers are dropped and the sentence they wrapped is kept.
+                texts.append(CITE_TAG.sub('',block.get('text','')))
                 sources.extend({'url':c['url'],'title':c.get('title','')} for c in block.get('citations',[]) if c.get('url'))
             if block.get('type')=='web_search_tool_result' and isinstance(block.get('content'),list):
                 sources.extend({'url':c['url'],'title':c.get('title','')} for c in block['content'] if c.get('url'))
