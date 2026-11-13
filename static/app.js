@@ -1513,6 +1513,17 @@ async function pollSignals(force) {
   signalBusy = false;
   renderSignals();
 }
+// Says the lean as a direction with its numbers, e.g. "History leans up: after this, NVDA finished
+// the day higher 61% of the time, against 48% on an ordinary day."
+function leanLine(e) {
+  const s = e.stats, way = e.lean_direction;
+  if (!way || s.continued_pct == null || s.usual_pct == null) return '';
+  const same = way === e.direction;   // the lean is in the event's own direction
+  const share = same ? s.continued_pct : 100 - s.continued_pct, usual = same ? s.usual_pct : 100 - s.usual_pct;
+  const word = way > 0 ? 'higher' : 'lower';
+  return `History leans ${way > 0 ? 'up' : 'down'}: after this, ${esc(e.symbol)} finished the day ${word} than this price ${share}% of the time, against ${usual}% on an ordinary day.` +
+    (same ? '' : ' The initial move usually reversed.');
+}
 function signalCard(e, read) {
   const s = e.stats, [cls, verdict] = VERDICT[e.verdict] || ['', ''];
   const dirWord = e.direction > 0 ? 'higher' : 'lower';
@@ -1524,7 +1535,7 @@ function signalCard(e, read) {
     : `<p class="hint">${esc(p.note)}</p>`;
   const ai = !read ? '' : `<div class="ai-read"><span class="pill ${read.stance === 'act' ? 'good' : read.stance === 'ignore' ? '' : 'warn'}">AI: ${STANCE[read.stance]}</span><p>${esc(read.read)}</p><p class="hint">Supports it: ${esc(read.confirm)}<br>Wrong if: ${esc(read.wrong)}${read.lowered ? '<br>' + esc(read.lowered) : ''}</p></div>`;
   return `<article class="signal ${cls}"><div class="signal-head"><div><strong>${esc(e.symbol)}</strong> ${esc(e.what)}${e.level != null ? ' <span class="muted">(' + price(e.level) + ')</span>' : ''}</div><span class="muted">${esc(e.time)} ET</span></div>
-    <p class="verdict ${cls}">${verdict}${e.verdict === 'continues' || e.verdict === 'fades' ? ' · ' + esc(e.lean) : ''}</p><p class="hint">${facts}</p>${plan}${ai}</article>`;
+    <p class="verdict ${cls}">${leanLine(e) || verdict}</p><p class="hint">${facts}</p>${plan}${ai}</article>`;
 }
 function tradeCards(trades) {
   const head = '<div class="section-title"><h2 data-tip="Proposed by the AI from the signals and the wider picture, then checked by code: re-priced against the live quote, the option contract chosen by rule, and sized to your budget and risk settings. A suggestion that fails a check is shown with the reason. You decide and place any trade yourself.">Trade suggestions</h2><span class="muted">Proposed, then tested against the evidence</span></div>';
