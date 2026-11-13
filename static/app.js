@@ -329,6 +329,12 @@ function renderStatusBanner(s) {
   } else if (!s.last_scan) {
     level = 'idle';
     text = `Session starting · waiting for the first scan · ${feedNote}`;
+  } else if (s.market_session?.status === 'closed' && !broken.some(b => b !== 'Bitcoin')) {
+    // Overnight the only live feed is Bitcoin, and a minute with no trades on its venue is normal.
+    // That is a quiet market, not a data failure, so it must not read as one.
+    const btc = feeds.find(f => f.symbol === 'BTC/USD');
+    level = 'idle';
+    text = `US market closed · reopens ${etTime(s.market_session.next_open, true)}` + (btc ? (btc.status === 'fresh' ? ' · Bitcoin live' : ' · Bitcoin quiet: no trade in the last minute on its venue') : '') + ' · stock ideas resume at the open';
   } else if (!feeds.length || !fresh) {
     level = 'bad';
     text = `No fresh market data · ${broken.length ? broken.join(', ') + ' unavailable' : 'nothing is reporting'} · ideas are withheld`;
