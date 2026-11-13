@@ -8,6 +8,10 @@ still come from Alpaca when its keys are present.
 import json
 import os
 import re
+import shlex
+import subprocess
+import threading
+import time
 from datetime import datetime, timedelta
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit
@@ -58,6 +62,44 @@ def merge(bars, size):
              'c': g[-1]['c'], 'v': sum(b['v'] or 0 for b in g), 'vw': g[-1]['c']} for g in out]
 
 
+class Unreachable(Exception):
+    pass
+
+
+START_LOCK = threading.Lock()
+
+
+def start_service(url):
+    """Start the market-data service named in MARKET_DATA_START and wait for it to answer.
+
+    The service is expected to stop itself when idle, so nothing here stops it.
+    """
+    command = os.getenv('MARKET_DATA_START', '').strip()
+    if not command:
+        return False
+    with START_LOCK:
+        def up():
+            try:
+                with urlopen(url + '/status', timeout=2):
+                    return True
+            except (URLError, TimeoutError, ValueError, OSError):
+                return False
+        if up():
+            return True
+        flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0) | getattr(subprocess, 'DETACHED_PROCESS', 0)             | getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0)
+        try:
+            subprocess.Popen(shlex.split(command, posix=os.name != 'nt'), creationflags=flags,
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except OSError:
+            return False
+        deadline = time.monotonic() + 25
+        while time.monotonic() < deadline:
+            if up():
+                return True
+            time.sleep(0.5)
+        return False
+
+
 class Bridge(Alpaca):
     name = 'Local market-data bridge'
 
@@ -77,6 +119,17 @@ class Bridge(Alpaca):
             self.alpaca = None  # Bitcoin and news need Alpaca keys; stocks and options do not.
 
     def fetch(self, path, params):
+        try:
+            return self.request(path, params)
+        except Unreachable:
+            if not start_service(self.url):
+                raise DataError(f'Bridge {path}: not reachable; is the market-data service running?') from None
+            try:
+                return self.request(path, params)
+            except Unreachable:
+                raise DataError(f'Bridge {path}: not reachable; is the market-data service running?') from None
+
+    def request(self, path, params):
         request = Request(self.url + path + '?' + urlencode({k: v for k, v in params.items() if v is not None}),
                           headers={'User-Agent': 'Daylight/bridge'})
         try:
@@ -91,7 +144,14 @@ class Bridge(Alpaca):
                        'rate_limited': 'rate limit reached; will retry next cycle'}
             raise DataError(f'Bridge {path}: {reasons.get(code or "", "HTTP " + str(exc.code))}.') from None
         except (URLError, TimeoutError, ValueError, OSError):
-            raise DataError(f'Bridge {path}: not reachable; is the market-data service running?') from None
+            raise Unreachable() from None
+
+    def option_chain(self, symbol, start, end, strikes=40):
+        """Every contract between two dates, with volume, open interest and greeks."""
+        return self.fetch('/chain', {'symbol': symbol, 'strikes': strikes, 'start': str(start), 'end': str(end)})
+
+    def order_book(self, symbol):
+        return self.fetch('/book', {'symbol': symbol, 'depth': 25})
 
     def get(self, path, params=None, clock=False):
         params = dict(params or {})
@@ -147,8 +207,3 @@ class Bridge(Alpaca):
     def option_quotes(self, symbols):
         found = self.fetch('/quotes', {'symbols': ','.join(padded(s) for s in symbols)}).get('quotes', {})
         return {compact(s) or s: quote_row(q) for s, q in found.items()}
-
-
-def live_provider():
-    """The bridge when MARKET_DATA_URL is set, otherwise Alpaca."""
-    return Bridge() if os.getenv('MARKET_DATA_URL', '').strip() else Alpaca()

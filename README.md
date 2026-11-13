@@ -44,9 +44,19 @@ Windows, `.\run.ps1` does the setup and runs it.
 
 ## Data feeds
 
-- The free IEX feed has wide spreads outside heavily traded names, and the
-  scanner rejects those on purpose. Use SIP, or stick to liquid tickers.
-- Options need OPRA data. Delayed indicative data is refused.
+Alpaca is the default. Schwab is optional and adds consolidated quotes, live
+options, a chain view, unusual-activity flags and an order book.
+
+- **Alpaca.** The free IEX feed has wide spreads outside heavily traded names,
+  and the scanner rejects those on purpose. Use SIP, or stick to liquid
+  tickers. Options need OPRA; delayed indicative data is refused.
+- **Schwab, your own key.** Create an app at developer.schwab.com with the
+  Market Data product and callback `https://127.0.0.1`. Put `SCHWAB_APP_KEY`
+  and `SCHWAB_APP_SECRET` in `.env`, restart, then log in from Settings.
+  Schwab requires a new login every 7 days. Only market data is read.
+- **Bitcoin and news** always come from Alpaca.
+- **Order book** needs a streaming connection, so it only works through a
+  local market-data service (`MARKET_DATA_URL`, see `bridge.py`).
 
 ## Safety
 

@@ -29,7 +29,9 @@ def load_env():
 
 
 load_env()
-from bridge import live_provider
+import optionsview
+import schwabdata
+from schwabdata import live_provider
 from market import Alpaca, DataError, CHART_RANGES, now, stamp, age, describe_et
 from research import research_cycle, long_term_cycle, analyze_headline
 from strategy import make_ideas, quote_problem
@@ -181,7 +183,7 @@ class Engine(PositionsMixin, ChatMixin, ChartAnalysisMixin):
         with self.lock:
             if generation is not None and (not self.running or generation != self.generation):
                 return
-            secret_values = [os.getenv(k) for k in ('APCA_API_KEY_ID', 'APCA_API_SECRET_KEY', 'OPENAI_API_KEY','ANTHROPIC_API_KEY','GOOGLE_API_KEY','LOCAL_AI_API_KEY') if os.getenv(k)]
+            secret_values = [os.getenv(k) for k in ('APCA_API_KEY_ID', 'APCA_API_SECRET_KEY', 'SCHWAB_APP_KEY', 'SCHWAB_APP_SECRET', 'OPENAI_API_KEY','ANTHROPIC_API_KEY','GOOGLE_API_KEY','LOCAL_AI_API_KEY') if os.getenv(k)]
             def clean(value):
                 if isinstance(value, dict):
                     return {str(k): clean(v) for k, v in value.items()}
@@ -334,6 +336,12 @@ class Engine(PositionsMixin, ChatMixin, ChartAnalysisMixin):
                 row['status']='Waiting for the US stock session'
         return rows
 
+    def data_provider(self):
+        """The running session's provider, or a fresh one for views that work with the session stopped."""
+        with self.lock:
+            provider = self.provider
+        return provider or live_provider()
+
     def chart(self, symbol, span='1D', interval='auto'):
         """Historical bars for any supported ticker.
 
@@ -412,9 +420,9 @@ class Engine(PositionsMixin, ChatMixin, ChartAnalysisMixin):
                 'risk_left': risk_left, 'paper_losses_today': losses,
                 'connections': {'alpaca': bool(os.getenv('APCA_API_KEY_ID') and os.getenv('APCA_API_SECRET_KEY')),
                     'openai': bool(os.getenv('OPENAI_API_KEY')),
-                    'bridge': bool(os.getenv('MARKET_DATA_URL', '').strip()),
-                    'stock_feed': 'bridge' if os.getenv('MARKET_DATA_URL', '').strip() else os.getenv('ALPACA_STOCK_FEED', 'sip'),
-                    'option_feed': 'opra' if os.getenv('MARKET_DATA_URL', '').strip() else os.getenv('ALPACA_OPTION_FEED', 'opra')}, 'server_time': stamp(now())})
+                    'data_source': schwabdata.source_name(), 'schwab': schwabdata.status(),
+                    'stock_feed': os.getenv('ALPACA_STOCK_FEED', 'sip') if schwabdata.source_name() == 'alpaca' else schwabdata.source_name(),
+                    'option_feed': os.getenv('ALPACA_OPTION_FEED', 'opra') if schwabdata.source_name() == 'alpaca' else 'opra'}, 'server_time': stamp(now())})
 
     def start(self, data):
         config = validate(data)
@@ -1123,6 +1131,23 @@ def handler_for(engine):
                 elif self.path == '/api/chart':
                     self.send(200, engine.chart(data.get('symbol'), data.get('span', '1D'), data.get('interval', 'auto')))
                     return
+                elif self.path == '/api/options':
+                    self.send(200, optionsview.chain(engine.data_provider(), data.get('symbol'), data.get('expiration')))
+                    return
+                elif self.path == '/api/options/scan':
+                    with engine.lock:
+                        symbols = list(engine.config['symbols'])
+                    self.send(200, optionsview.scan(engine.data_provider(), symbols))
+                    return
+                elif self.path == '/api/book':
+                    self.send(200, optionsview.book(engine.data_provider(), data.get('symbol')))
+                    return
+                elif self.path == '/api/schwab/connect':
+                    schwabdata.connect(data.get('url'))
+                    engine.trace('Data source', 'complete', 'Schwab connected. It is used from the next session start.')
+                elif self.path == '/api/schwab/disconnect':
+                    schwabdata.disconnect()
+                    engine.trace('Data source', 'complete', 'Schwab disconnected.')
                 elif self.path == '/api/ai/pause':
                     engine.set_ai_paused(data.get('paused'))
                 elif self.path == '/api/settings/research':

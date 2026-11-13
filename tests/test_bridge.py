@@ -7,12 +7,14 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from bridge import Bridge, compact, live_provider, merge, padded
+from bridge import Bridge, compact, merge, padded
+from schwabdata import live_provider
 from market import Alpaca, DataError, stamp
 from strategy import quote_problem
 
 UTC = timezone.utc
-ENV = {'MARKET_DATA_URL': 'http://127.0.0.1:17860', 'APCA_API_KEY_ID': '', 'APCA_API_SECRET_KEY': ''}
+ENV = {'MARKET_DATA_URL': 'http://127.0.0.1:17860', 'MARKET_DATA_START': '', 'APCA_API_KEY_ID': '', 'APCA_API_SECRET_KEY': '',
+       'SCHWAB_APP_KEY': '', 'SCHWAB_APP_SECRET': ''}
 
 
 def ms(dt):

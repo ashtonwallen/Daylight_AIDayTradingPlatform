@@ -479,3 +479,43 @@ button:disabled{opacity:.5;cursor:not-allowed}
   .provider-list{grid-template-columns:1fr}
 }
 @media(max-width:600px){.category-health{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* ---- Options, order book, market data ---- */
+.tabs .tab-end{margin-left:auto}
+.lookup{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 16px}
+.lookup input{width:110px;text-transform:uppercase}
+.lookup input.wide{flex:1;min-width:240px;width:auto;text-transform:none}
+.lookup select{width:auto;min-width:120px}
+.form-error{font-size:12px;color:var(--red);line-height:1.5;margin:0 0 12px}
+.form-error:empty{display:none}
+.scroll-x{overflow-x:auto;margin-bottom:26px}
+table.data{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+table.data th,table.data td{padding:7px 10px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+table.data th{color:var(--muted);font-weight:500;font-size:11px}
+table.data td:first-child,table.data th:first-child{text-align:left}
+table.chain td:first-child,table.chain th:first-child{text-align:right}
+table.chain thead tr:first-child th{text-align:center;color:var(--label);font-size:12px}
+table.chain td.strike{text-align:center;font-weight:600;color:var(--text);background:var(--panel);border-left:1px solid var(--line);border-right:1px solid var(--line)}
+table.chain td.itm{background:color-mix(in srgb,var(--accent) 7%,transparent)}
+table.chain tr.atm td{border-top:1px solid var(--accent);border-bottom:1px solid var(--accent)}
+.smile svg,.book-wall svg{width:100%;height:auto;display:block}
+.smile text,.book-wall text{fill:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
+.smile .grid{stroke:var(--line);stroke-width:1}
+.smile path{fill:none;stroke-width:2}
+.smile path.calls{stroke:var(--up)}
+.smile path.puts{stroke:var(--down)}
+.smile .spot{stroke:var(--accent);stroke-dasharray:4 4}
+.smile .spot-label{fill:var(--accent)}
+.legend{font-size:11px;color:var(--muted);margin:8px 0 0}
+.legend .key{display:inline-block;width:14px;height:2px;vertical-align:middle;margin:0 5px 0 12px}
+.legend .key.calls{background:var(--up)}
+.legend .key.puts{background:var(--down)}
+.book-wall{border:1px solid var(--line);border-radius:9px;background:var(--panel);padding:14px}
+.book-wall .bid{fill:color-mix(in srgb,var(--up) 38%,transparent)}
+.book-wall .ask{fill:color-mix(in srgb,var(--down) 38%,transparent)}
+.book-wall .px{fill:var(--text);font-size:12px;font-weight:600}
+.book-wall .head{fill:var(--muted);font-size:10px;letter-spacing:.5px;text-transform:uppercase}
+.book-wall .venues{fill:var(--muted);font-size:9px}
+.steps{margin:0 0 14px;padding-left:20px;font-size:13px;line-height:1.8;color:var(--label)}
+.steps a{color:var(--accent)}
+.data-panel{margin-bottom:28px}

@@ -301,9 +301,7 @@ function renderHeader(s) {
   const remaining = Math.max(0, usage.limit - usage.requests);
   setText($('#calls'), String(remaining));
   setText($('#calls-note'), `of ${usage.limit} today · ${s.calls_used} used this session`);
-  setText($('#connection'), 'LIVE DATA');
   renderStatusBanner(s);
-  setText($('#alpaca-status'), s.connections.alpaca ? 'Key configured' : 'Not configured');
   setText($('#ai-status'), s.ai_settings?.configured ? `${s.ai_settings.label} · ${s.ai_settings.model}` : 'Not configured');
   const feeds = s.feed_health || [], fresh = feeds.filter(f => f.status === 'fresh').length;
   setText($('#feed-summary'), `${fresh} / ${feeds.length} feeds with fresh quotes · ${s.running ? 'monitoring' : 'session stopped'}`);
@@ -321,7 +319,7 @@ function renderHeader(s) {
 function renderStatusBanner(s) {
   const banner = $('#mode-banner'), feeds = s.feed_health || [];
   const fresh = feeds.filter(f => f.status === 'fresh').length;
-  const feedNote = `${s.connections.stock_feed.toUpperCase()} stocks / ${s.connections.option_feed.toUpperCase()} options / Alpaca Bitcoin`;
+  const feedNote = `stocks and options from ${SOURCE_NAMES[s.connections.data_source] || 'Alpaca'}`;
   const broken = Object.values(s.data_categories || {})
     .filter(cat => cat.status === 'unavailable').map(cat => cat.label);
   let level, text;
@@ -404,7 +402,7 @@ function renderDesk(s) {
   setText(banner, bannerText);
   patch($('#alerts'), s.errors.map(e => `<div class="alert">${esc(e)}</div>`).join(''));
   patch($('#ideas'), s.ideas.length ? s.ideas.map(ideaCard).join('') :
-    `<div class="empty"><div class="empty-icon">⌁</div><h3>${s.running ? 'Watching. No qualifying ideas yet.' : 'A little context before your next move.'}</h3><p>${s.running ? 'Research, price action and risk limits need to align.<br>The list below explains what each symbol is waiting for.' : 'Set your budget and hit Go.<br>Your observations and ideas will appear here.'}</p></div>`);
+    `<div class="empty"><div class="empty-icon">⌁</div><h3>${s.running ? 'No ideas pass the checks yet' : 'No session running'}</h3><p>${s.running ? 'Research, price action and risk limits need to align.<br>The list below explains what each symbol is waiting for.' : 'Set a budget and watchlist, then start a session.<br>Ideas appear here when the checks pass.'}</p></div>`);
   renderWatchlist(s);
   renderChart(s);
   renderDiscovery(s);
@@ -714,7 +712,7 @@ const IDEA_MODES = {
     heading:'Research a trade thesis', label:'What trade are you considering?',
     intro:'Describe any trade thesis and timeframe, for example “NVDA calls over the next month.” Fresh web research returns a graded verdict, risks, what would change the view, and a specific contract candidate when market data permits. Works with monitoring stopped or markets closed; your watchlist does not limit it.',
     button:'Research my thesis', running:'Researching thesis…',
-    hint:'One AI request with web search, counted toward your shared daily allowance. Stock and option contract checks use Alpaca separately; missing quotes or entitlements are reported, never guessed.',
+    hint:'One AI request with web search, counted toward your shared daily allowance. Stock and option contract checks use your market data source separately; missing quotes or entitlements are reported, never guessed.',
     legend:'Favorable → Cautiously favorable → Mixed → Unfavorable. Insufficient evidence means there is no defensible assessment. These are research judgments, not win probabilities. Contract suitability is checked separately against live quotes.',
     placeholder:'I’m considering NVDA calls over the next month. What catalysts, price trends and options risks matter?',
     prompts:[['NVDA calls · 1 month', 'I’m considering NVDA calls over the next month. Research upcoming catalysts, recent performance, time decay and volatility risks, and identify a contract candidate if data supports it.'],
@@ -1019,7 +1017,7 @@ function renderNews(s) {
       ${a.sources.length ? `<h4>Sources read</h4>${sourceLinks(a.sources)}` : ''}
       <p class="hint">Advisory research on one headline, assessed ${time(a.checked_at)}. Not an entry signal, price forecast or order.</p></div>`;
     return `<article class="news-item"><div class="news-head"><div class="meta"><span class="meta-item"><span class="meta-key">Source</span><b>${esc(n.source)}</b></span><span class="meta-item"><span class="meta-key">Published</span><b>${esc(dateTime(n.created_at) || n.created_at)}</b></span>${(n.symbols || []).length ? `<span class="meta-item"><span class="meta-key">Tagged</span><b>${esc((n.symbols || []).slice(0, 4).join(', '))}</b></span>` : ''}</div>
-      <button type="button" class="text-button" data-analyze="${index}" ${a?.status === 'running' || busyElsewhere ? 'disabled' : ''}>${a?.status === 'running' ? 'Agent working…' : a?.status === 'complete' ? 'Re-run agent · 1 AI request ↗' : 'Ask an agent · 1 AI request ↗'}</button></div>
+      <button type="button" class="text-button" data-analyze="${index}" ${a?.status === 'running' || busyElsewhere ? 'disabled' : ''}>${a?.status === 'running' ? 'Agent working…' : a?.status === 'complete' ? 'Analyze again · 1 AI request' : 'Analyze · 1 AI request'}</button></div>
       <a href="${url(n.url)}" target="_blank" rel="noopener noreferrer">${esc(n.headline)} ↗</a>${body}</article>`;
   }).join('') : '<p class="hint">No headlines retrieved. This does not mean there is no relevant news.</p>');
 }
@@ -1215,7 +1213,7 @@ const HELP = {
   risk:'Limit 1 of 3. The most a single idea is allowed to lose, as a percentage of your budget, which decides how many shares, contracts or BTC an idea is sized for. A stock or Bitcoin idea uses the entry-to-stop distance, so a $2 stop on a 1% / $10,000 budget allows 50 shares. A long option reserves its entire premium, because the premium is what you can lose, so one $1.20 contract needs $120 of this allowance. Set it too low and option ideas can never be sized at all. Conventional discretionary risk is 1-2%, but the range goes to 100% so a small speculative account can put its whole budget behind one idea. At 100% you are accepting that a single position can lose everything, and Max position size % must be raised to match or it will bind first. Actual losses can exceed a stop estimate.',
   loss:"Limit 2 of 3. The total this session may lose across every idea: this percentage of your budget, minus today's realized paper losses and the risk already reserved by open paper positions. At 3% of $10,000 it starts at $300, so three ideas risking $100 each exhaust it. It must be at least the per-idea risk. The day resets at midnight UTC. Reaching it stops new ideas; it never closes an open position for you.",
   'max-position':'Limit 3 of 3, and the one most often responsible for an idea that never appears. No single position may use more than this percentage of your budget in cash, regardless of how tight its stop is. At 25% of $10,000 that is $2,500, so a $650 share price allows at most 3 shares even if your risk allowance would permit more. Lower it to force diversification; raise it toward 100% if you deliberately want to concentrate on one position at a time.',
-  budget:'The amount you choose to allocate to this workspace. Used for suggestion sizing; it is not your broker balance or verified buying power.',
+  budget:'The amount you want Daylight to size ideas against. Used for suggestion sizing; it is not your broker balance or verified buying power.',
   symbols:'Stock tickers to monitor. For options, an underlying is the stock the contract is based on. Option discovery scans the first three tickers; Bitcoin is selected separately.',
   'research-interval':'How often the three web-research agents run while the session is active. Market scans run separately, about once per minute. Optional automatic position reviews use this cadence too.',
   'research-calls':'Maximum background web-research requests per session. Each cycle uses three requests, so 36 allows 12 cycles. Other AI features have separate limits and all share the 120-request UTC-day cap. Requests are not tokens or dollars; failures count.',
@@ -1265,6 +1263,149 @@ window.addEventListener('resize', closeHelp);
 document.addEventListener('scroll', closeHelp, true);
 
 // ---------- Render everything, then poll ----------
+
+// ---------- Options, order book and market data source ----------
+// These three views ask the server directly and do not depend on a running session.
+async function ask(path, data = {}) {
+  const res = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json', 'X-CSRF-Token':csrf}, body:JSON.stringify(data)});
+  const result = await res.json();
+  if (!res.ok) throw Error(result.error || 'Request failed');
+  return result;
+}
+const whole = n => Number(n || 0).toLocaleString('en-US', {maximumFractionDigits:0});
+const compact = n => n >= 1e9 ? '$' + (n / 1e9).toFixed(1) + 'B' : n >= 1e6 ? '$' + (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? '$' + (n / 1e3).toFixed(0) + 'K' : '$' + whole(n);
+const price = n => n == null ? '–' : Number(n).toFixed(2);
+const count = n => n >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : n >= 1e4 ? (n / 1e3).toFixed(0) + 'K' : whole(n);
+const shortDate = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric'});
+const picks = (el, current) => patch(el, (state?.config.symbols || []).map(s => `<button type="button" class="chart-span ${s === current ? 'active' : ''}" data-pick="${esc(s)}">${esc(s)}</button>`).join(''));
+
+let optSymbol = store.get('daylight-options-symbol', ''), optView = null, optLoading = false, unusualScan = null;
+async function loadOptions(expiration) {
+  if (!optSymbol || optLoading) return;
+  optLoading = true;
+  setText($('#options-error'), ''); setText($('#options-status'), 'Loading…');
+  try {
+    optView = await ask('/api/options', {symbol:optSymbol, expiration:expiration || null});
+    store.set('daylight-options-symbol', optSymbol);
+  } catch (e) { optView = null; setText($('#options-error'), e.message); }
+  optLoading = false;
+  renderOptions();
+}
+function unusualTable(rows, empty) {
+  if (!rows.length) return `<p class="hint">${esc(empty)}</p>`;
+  return `<table class="data"><thead><tr><th>Contract</th><th>Volume</th><th>Open interest</th><th>Volume ÷ OI</th><th>Value traded</th><th>Strike vs price</th><th>Implied vol</th></tr></thead><tbody>${rows.map(r =>
+    `<tr><td><b>${esc(r.underlying)}</b> ${price(r.strike)} ${esc(r.type)} · ${shortDate(r.expiration)} <span class="muted">${r.days}d</span></td><td>${whole(r.volume)}</td><td>${whole(r.open_interest)}</td><td>${r.ratio}×</td><td>${r.premium == null ? '–' : compact(r.premium)}</td><td>${r.distance_pct == null ? '–' : (r.distance_pct > 0 ? '+' : '') + r.distance_pct + '%'}</td><td>${r.iv == null ? '–' : r.iv.toFixed(0) + '%'}</td></tr>`).join('')}</tbody></table>`;
+}
+function smile(view) {
+  const pts = kind => view.rows.filter(r => r[kind]?.iv != null).map(r => [r.strike, r[kind].iv]);
+  const calls = pts('call'), puts = pts('put'), all = [...calls, ...puts];
+  if (all.length < 3) return '<p class="hint">Not enough quotes to draw this expiration.</p>';
+  const xs = all.map(p => p[0]), ys = all.map(p => p[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys) * 0.95, y1 = Math.max(...ys) * 1.05;
+  const W = 900, H = 220, L = 44, B = 24;
+  const x = v => L + (v - x0) / (x1 - x0 || 1) * (W - L - 8), y = v => 8 + (1 - (v - y0) / (y1 - y0 || 1)) * (H - B - 8);
+  const line = p => p.map(([a, b], i) => (i ? 'L' : 'M') + x(a).toFixed(1) + ',' + y(b).toFixed(1)).join('');
+  const ticks = [y0, (y0 + y1) / 2, y1].map(v => `<text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${v.toFixed(0)}%</text><line class="grid" x1="${L}" x2="${W - 8}" y1="${y(v)}" y2="${y(v)}"/>`).join('');
+  const xt = [x0, (x0 + x1) / 2, x1].map(v => `<text x="${x(v)}" y="${H - 6}" text-anchor="middle">${price(v)}</text>`).join('');
+  const spot = view.underlying >= x0 && view.underlying <= x1 ? `<line class="spot" x1="${x(view.underlying)}" x2="${x(view.underlying)}" y1="8" y2="${H - B}"/><text class="spot-label" x="${x(view.underlying) + 5}" y="18">share price ${price(view.underlying)}</text>` : '';
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Implied volatility by strike">${ticks}${xt}${spot}<path class="calls" d="${line(calls)}"/><path class="puts" d="${line(puts)}"/></svg><p class="legend"><span class="key calls"></span>Calls <span class="key puts"></span>Puts</p>`;
+}
+function renderOptions() {
+  picks($('#options-picks'), optSymbol);
+  if ($('#options-symbol') !== document.activeElement && !$('#options-symbol').value) $('#options-symbol').value = optSymbol;
+  const v = optView;
+  $('#options-summary').hidden = $('#options-smile-panel').hidden = !v;
+  if (!v) { patch($('#options-chain'), optSymbol || $('#options-error').textContent ? '' : '<p class="hint">Enter a ticker to see its option chain.</p>'); setText($('#options-status'), ''); }
+  else {
+    setText($('#options-status'), `${v.symbol} · ${v.rows.length} strikes`);
+    const sel = $('#options-expiration');
+    const opts = v.expirations.map(e => `<option value="${e}" ${e === v.expiration ? 'selected' : ''}>${shortDate(e)}</option>`).join('');
+    if (lastHTML.get(sel) !== opts) { sel.innerHTML = opts; lastHTML.set(sel, opts); }
+    sel.disabled = false;
+    const t = v.totals, ratio = t.call_volume ? (t.put_volume / t.call_volume).toFixed(2) : '–';
+    patch($('#options-summary'), `<div><span>Share price</span><strong>${price(v.underlying)}</strong></div><div><span>Expires</span><strong>${shortDate(v.expiration)}</strong><small class="stat-note">${v.days === 1 ? '1 day' : v.days + ' days'}</small></div><div><span>Call / put volume</span><strong>${count(t.call_volume)} / ${count(t.put_volume)}</strong></div><div><span>Puts per call</span><strong>${ratio}</strong></div>`);
+    patch($('#options-smile'), smile(v));
+    const atm = v.rows.reduce((best, r) => Math.abs(r.strike - v.underlying) < Math.abs(best.strike - v.underlying) ? r : best, v.rows[0]);
+    const cells = (o, order) => order.map(k => `<td>${o == null ? '–' : k === 'iv' ? (o.iv == null ? '–' : o.iv.toFixed(0) + '%') : k === 'delta' ? (o.delta == null ? '–' : o.delta.toFixed(2)) : k === 'bid' || k === 'ask' ? price(o[k]) : whole(o[k])}</td>`).join('');
+    const callOrder = ['open_interest', 'volume', 'iv', 'delta', 'bid', 'ask'], putOrder = ['bid', 'ask', 'delta', 'iv', 'volume', 'open_interest'];
+    patch($('#options-chain'), `<table class="data chain"><thead><tr><th colspan="6">Calls</th><th></th><th colspan="6">Puts</th></tr><tr><th>Open int.</th><th>Volume</th><th>Impl. vol</th><th>Delta</th><th>Bid</th><th>Ask</th><th>Strike</th><th>Bid</th><th>Ask</th><th>Delta</th><th>Impl. vol</th><th>Volume</th><th>Open int.</th></tr></thead><tbody>${v.rows.map(r =>
+      `<tr class="${r === atm ? 'atm' : ''}">${cells(r.call, callOrder).replace(/<td>/g, `<td class="${r.strike < v.underlying ? 'itm' : ''}">`)}<td class="strike">${price(r.strike)}</td>${cells(r.put, putOrder).replace(/<td>/g, `<td class="${r.strike > v.underlying ? 'itm' : ''}">`)}</tr>`).join('')}</tbody></table>`);
+  }
+  const scan = unusualScan;
+  setText($('#unusual-rule'), scan?.rule ? scan.rule + (scan.errors.length ? ' · ' + scan.errors.join(' · ') : '') : '');
+  patch($('#unusual-list'), scan ? unusualTable(scan.rows, `Nothing unusual across ${scan.symbols.join(', ')}.`)
+    : v ? unusualTable(v.unusual, `Nothing unusual in ${v.symbol} for the next 60 days.`) : '');
+}
+$('#options-form').onsubmit = e => { e.preventDefault(); const s = $('#options-symbol').value.trim().toUpperCase(); if (!s) return; optSymbol = s; unusualScan = null; loadOptions(); };
+$('#options-expiration').onchange = e => loadOptions(e.target.value);
+$('#options-picks').onclick = e => { const b = e.target.closest('[data-pick]'); if (!b) return; optSymbol = b.dataset.pick; $('#options-symbol').value = optSymbol; unusualScan = null; loadOptions(); };
+$('#options-scan').onclick = async () => {
+  const b = $('#options-scan'); b.disabled = true; setText(b, 'Scanning…'); setText($('#options-error'), '');
+  try { unusualScan = await ask('/api/options/scan'); } catch (e) { setText($('#options-error'), e.message); }
+  b.disabled = false; setText(b, 'Scan watchlist'); renderOptions();
+};
+
+let bookSymbol = store.get('daylight-book-symbol', ''), bookView = null, bookBusy = false;
+async function pollBook() {
+  if (!bookSymbol || bookBusy || document.hidden || store.get('daylight-tab', 'overview') !== 'book' || !connected) return;
+  bookBusy = true;
+  try { bookView = await ask('/api/book', {symbol:bookSymbol}); setText($('#book-error'), ''); store.set('daylight-book-symbol', bookSymbol); }
+  catch (e) { bookView = null; setText($('#book-error'), e.message); }
+  bookBusy = false;
+  renderBook();
+}
+function renderBook() {
+  picks($('#book-picks'), bookSymbol);
+  if ($('#book-symbol') !== document.activeElement && !$('#book-symbol').value) $('#book-symbol').value = bookSymbol;
+  const v = bookView;
+  $('#book-summary').hidden = !v || !(v.bids.length || v.asks.length);
+  if (!v) { patch($('#book-wall'), bookSymbol || $('#book-error').textContent ? '' : '<p class="hint">Enter a ticker to see its order book.</p>'); setText($('#book-status'), ''); return; }
+  const waiting = {connecting:'Connecting to the stream…', waiting:'Waiting for the first update…', error:v.detail || 'Stream unavailable'}[v.status];
+  setText($('#book-status'), waiting || `${v.symbol} · updated ${v.age_seconds < 2 ? 'just now' : Math.round(v.age_seconds) + ' s ago'}`);
+  if (!v.bids.length && !v.asks.length) { patch($('#book-wall'), `<p class="hint">${esc(waiting || 'No resting orders reported. Books are thin or empty outside market hours.')}</p>`); return; }
+  const rows = 15, bids = v.bids.slice(0, rows), asks = v.asks.slice(0, rows);
+  const sum = l => l.reduce((a, b) => a + b.size, 0), bidTotal = sum(bids), askTotal = sum(asks);
+  patch($('#book-summary'), `<div><span>Best bid</span><strong class="positive">${price(bids[0]?.price)}</strong></div><div><span>Best ask</span><strong class="negative">${price(asks[0]?.price)}</strong></div><div><span>Spread</span><strong>${v.spread == null ? '–' : v.spread.toFixed(2)}</strong></div><div><span>Shares bid / offered</span><strong>${whole(bidTotal)} / ${whole(askTotal)}</strong><small class="stat-note">top ${rows} prices</small></div>`);
+  const max = Math.max(...bids.map(b => b.size), ...asks.map(a => a.size), 1);
+  const W = 1000, RH = 26, mid = W / 2, gap = 6, bar = mid - 150;
+  const row = (l, i, side) => {
+    if (!l) return '';
+    const w = Math.max(2, l.size / max * bar), y = 30 + i * RH;
+    return side === 'bid'
+      ? `<rect class="bid" x="${mid - gap - w}" y="${y}" width="${w}" height="${RH - 5}"/><text class="px" x="${mid - gap - 8}" y="${y + 15}" text-anchor="end">${price(l.price)}</text><text x="8" y="${y + 15}">${whole(l.size)} <tspan class="venues">${esc(l.venues.slice(0, 3).join(' '))}</tspan></text>`
+      : `<rect class="ask" x="${mid + gap}" y="${y}" width="${w}" height="${RH - 5}"/><text class="px" x="${mid + gap + 8}" y="${y + 15}">${price(l.price)}</text><text x="${W - 8}" y="${y + 15}" text-anchor="end"><tspan class="venues">${esc(l.venues.slice(0, 3).join(' '))}</tspan> ${whole(l.size)}</text>`;
+  };
+  const n = Math.max(bids.length, asks.length);
+  patch($('#book-wall'), `<svg viewBox="0 0 ${W} ${30 + n * RH + 6}" role="img" aria-label="Order book for ${esc(v.symbol)}"><text class="head" x="8" y="16">Shares · venues</text><text class="head" x="${mid - gap - 8}" y="16" text-anchor="end">Bid</text><text class="head" x="${mid + gap + 8}" y="16">Ask</text><text class="head" x="${W - 8}" y="16" text-anchor="end">Venues · shares</text>${Array.from({length:n}, (_, i) => row(bids[i], i, 'bid') + row(asks[i], i, 'ask')).join('')}</svg>`);
+}
+$('#book-form').onsubmit = e => { e.preventDefault(); const s = $('#book-symbol').value.trim().toUpperCase(); if (!s) return; bookSymbol = s; bookView = null; renderBook(); pollBook(); };
+$('#book-picks').onclick = e => { const b = e.target.closest('[data-pick]'); if (!b) return; bookSymbol = b.dataset.pick; $('#book-symbol').value = bookSymbol; bookView = null; renderBook(); pollBook(); };
+setInterval(pollBook, 1200);
+
+const SOURCE_NAMES = {alpaca:'Alpaca', schwab:'Schwab', bridge:'Schwab (local service)'};
+function renderDataSource(s) {
+  const c = s.connections, sw = c.schwab || {};
+  setText($('#data-source'), SOURCE_NAMES[c.data_source] || '');
+  setText($('#alpaca-status'), SOURCE_NAMES[c.data_source] + (c.data_source === 'alpaca' && !c.alpaca ? ' · key missing' : ''));
+  const hours = sw.login_expires_in_hours, left = hours == null ? '' : hours >= 48 ? Math.floor(hours / 24) + ' days' : Math.max(0, Math.floor(hours)) + ' hours';
+  let text;
+  if (c.data_source === 'bridge') text = 'Stocks and options come from the local market-data service set in MARKET_DATA_URL. Bitcoin and news come from Alpaca.';
+  else if (sw.connected) text = `Stocks and options come from Schwab. The login expires in ${left}; Schwab requires a new login every 7 days. Bitcoin and news come from Alpaca.`;
+  else if (sw.configured) text = 'A Schwab app key is saved but not logged in, so data comes from Alpaca. Log in to switch to Schwab.';
+  else text = 'Data comes from Alpaca. To use Schwab instead, create an app at developer.schwab.com with the Market Data product and callback address ' + (sw.callback_url || 'https://127.0.0.1') + ', then add SCHWAB_APP_KEY and SCHWAB_APP_SECRET to the .env file and restart.';
+  setText($('#schwab-state'), text);
+  const canConnect = c.data_source !== 'bridge' && sw.configured && !sw.connected;
+  $('#schwab-connect').hidden = !canConnect;
+  if (canConnect) { $('#schwab-link').href = sw.authorize_url; setText($('#schwab-callback'), sw.callback_url); }
+  $('#schwab-disconnect').hidden = !(c.data_source !== 'bridge' && sw.connected);
+}
+$('#schwab-form').onsubmit = async e => {
+  e.preventDefault();
+  try { await post('/api/schwab/connect', {url:$('#schwab-url').value}); $('#schwab-url').value = ''; setText($('#schwab-message'), 'Connected. Schwab is used from the next session start.'); }
+  catch (err) { setText($('#schwab-message'), err.message); }
+};
+$('#schwab-disconnect').onclick = async () => { try { await post('/api/schwab/disconnect'); setText($('#schwab-message'), 'Disconnected.'); } catch (err) { setText($('#schwab-message'), err.message); } };
+
 function render() {
   const s = state;
   renderHeader(s);
@@ -1277,6 +1418,9 @@ function render() {
   renderPositions(s);
   renderDebug(s);
   renderSettings(s);
+  renderDataSource(s);
+  renderOptions();
+  renderBook();
 }
 setInterval(() => {
   setText($('#clock'), new Date().toLocaleTimeString('en-US', {timeZone:'America/New_York', hour:'2-digit', minute:'2-digit', second:'2-digit'}) + ' ET');

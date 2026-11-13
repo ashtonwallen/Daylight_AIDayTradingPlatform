@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### Schwab data, options and order book
+- **Schwab with your own key.** `SCHWAB_APP_KEY` and `SCHWAB_APP_SECRET` plus a login from Settings
+  switch stocks and options to the Schwab Trader API (`schwabdata.py`). Market data only; the
+  token stays in `data/`. Alpaca remains the default and still supplies Bitcoin and news.
+- **Options tab.** Chain by strike for any expiration in the next 60 days, implied volatility by
+  strike, and contracts whose volume is well above open interest (`optionsview.py`). Needs Schwab
+  data, because Alpaca does not supply volume and open interest per contract.
+- **Order book tab.** Live bids and asks by price. Needs a local market-data service with a stream.
+- **Service starts on demand.** `MARKET_DATA_START` names a command that Daylight runs when the
+  local service is not answering.
+
+### Interface
+- Plain tab names in one row: Overview, Options, Order book, Idea check, Research, Positions,
+  Paper trades, Chat, with Activity and Settings at the end.
+- Plain headings and button labels throughout; decorative arrows, the constant "LIVE DATA" badge
+  and the page title above the tabs are gone.
+- Settings shows where market data comes from and how long the Schwab login has left.
+
 ### Local market-data bridge
 - `MARKET_DATA_URL` points stocks and options at a read-only service on this computer instead of
   Alpaca (`bridge.py`). It answers in Alpaca's shapes, so every freshness, spread and sizing check
