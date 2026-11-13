@@ -1493,6 +1493,59 @@ $('#risk-run').onclick = async () => {
   b.disabled = false;
 };
 
+
+// ---------- Signals ----------
+let signalData = null, signalBusy = false;
+const VERDICT = {continues:['lean', 'Tends to keep going'], fades:['lean', 'Tends to reverse'], ordinary:['', 'No different from an ordinary day'], few:['', 'Too few past cases'], note:['', 'Activity note']};
+const STANCE = {act:'Worth acting on', watch:'Watch', ignore:'Ignore'};
+async function pollSignals(force) {
+  if (signalBusy || !connected || !state || state.connections.data_source === 'alpaca' || (document.hidden && !force)) return;
+  signalBusy = true;
+  if (!signalData) setText($('#signals-status'), 'Loading history. The first scan of the day takes up to a minute…');
+  try { signalData = await ask('/api/signals'); setText($('#signals-error'), ''); }
+  catch (e) { setText($('#signals-error'), e.message); setText($('#signals-status'), ''); }
+  signalBusy = false;
+  renderSignals();
+}
+function signalCard(e, read) {
+  const s = e.stats, [cls, verdict] = VERDICT[e.verdict] || ['', ''];
+  const dirWord = e.direction > 0 ? 'higher' : 'lower';
+  const facts = !s.cases ? 'No past cases in this stock.' :
+    `${s.cases} past case${s.cases === 1 ? '' : 's'} in ${s.sessions} sessions` + (e.direction ? ` · ended the day ${dirWord} ${s.continued_pct}% of the time (ordinary day from this time: ${s.usual_pct ?? '–'}%)` : '') +
+    ` · median move to the close ${pct(s.median_to_close_pct)} (ordinary ${pct(s.usual_median_pct)})` + (s.median_half_hour_pct != null ? ` · next 30 min ${pct(s.median_half_hour_pct)}` : '');
+  const p = e.plan;
+  const plan = !p ? '' : p.entry ? `<div class="levels"><div><span>Buy</span><strong>${whole(p.quantity)} sh at ${price(p.entry)}</strong></div><div><span>Stop</span><strong>${price(p.stop)}</strong></div><div><span>Target</span><strong>${price(p.target)}</strong></div><div><span>Cost · at risk</span><strong>${money(p.cost)} · ${money(p.risk)}</strong></div></div>`
+    : `<p class="hint">${esc(p.note)}</p>`;
+  const ai = !read ? '' : `<div class="ai-read"><span class="pill ${read.stance === 'act' ? 'good' : read.stance === 'ignore' ? '' : 'warn'}">AI: ${STANCE[read.stance]}</span><p>${esc(read.read)}</p><p class="hint">Supports it: ${esc(read.confirm)}<br>Wrong if: ${esc(read.wrong)}${read.lowered ? '<br>' + esc(read.lowered) : ''}</p></div>`;
+  return `<article class="signal ${cls}"><div class="signal-head"><div><strong>${esc(e.symbol)}</strong> ${esc(e.what)}${e.level != null ? ' <span class="muted">(' + price(e.level) + ')</span>' : ''}</div><span class="muted">${esc(e.time)} ET</span></div>
+    <p class="verdict ${cls}">${verdict}${e.verdict === 'continues' || e.verdict === 'fades' ? ' · ' + esc(e.lean) : ''}</p><p class="hint">${facts}</p>${plan}${ai}</article>`;
+}
+function renderSignals() {
+  const d = signalData, review = state?.signal_review || {};
+  const b = $('#signals-review');
+  b.disabled = !d || !d.events.length || state?.ai_paused || state?.signal_reviewing;
+  if (state?.signal_reviewing) setText(b, 'Reviewing…'); else if (b.textContent === 'Reviewing…') b.innerHTML = 'Review with AI <span class="cost">1 AI request</span>';
+  const reads = review.status === 'complete' && d && review.date === d.date ? Object.fromEntries(review.reads.map(r => [r.id, r])) : {};
+  patch($('#signals-review-result'), review.status === 'complete' ? `<section class="panel ai-overview"><h3>AI review · ${time(review.at)}${review.web ? ' · with web search' : ''}</h3><p>${esc(review.overview)}</p>${review.reads.length ? '' : '<p class="hint">It singled out no individual signal.</p>'}</section>`
+    : review.status === 'error' ? `<div class="alert">${esc(review.message)}</div>` : review.status === 'running' ? '<div class="alert">The AI is reading the signals against the wider market. This takes up to a minute.</div>' : '');
+  if (!d) return;
+  const leaning = d.events.filter(e => e.verdict === 'continues' || e.verdict === 'fades');
+  setText($('#signals-count'), String(leaning.length));
+  setText($('#signals-status'), `${shortDate(d.date)} · ${d.events.length} events, ${leaning.length} with a lean · ${d.symbols.length} stocks · ${d.sessions} sessions of history${d.errors.length ? ' · ' + d.errors.join(' · ') : ''}`);
+  const only = $('#signals-leaning').checked;
+  const order = e => ({act:0, watch:1, ignore:2})[reads[e.id]?.stance] ?? 3;
+  const shown = (only ? leaning : d.events).slice().sort((a, c) => order(a) - order(c));
+  patch($('#signals-list'), shown.length ? shown.map(e => signalCard(e, reads[e.id])).join('') : `<p class="hint">${only ? 'No signal today has a historical lean.' : 'No events yet today.'}</p>`);
+  const top = leaning.slice(0, 3);
+  patch($('#signals-top'), top.length ? `<div class="section-title"><h2>Signals with a lean</h2><button type="button" class="text-button" data-goto="signals">All signals</button></div>${top.map(e => signalCard(e, reads[e.id])).join('')}` : '');
+}
+$('#signals-leaning').onchange = renderSignals;
+$('#signals-top').onclick = e => { if (e.target.closest('[data-goto]')) showTab('signals'); };
+$('#signals-review').onclick = async () => { setText($('#signals-error'), ''); try { await post('/api/signals/review'); } catch (e) { setText($('#signals-error'), e.message); } };
+$('[data-tab="signals"]').addEventListener('click', () => pollSignals(true));
+setInterval(pollSignals, 60000);
+setTimeout(pollSignals, 2500);
+
 function render() {
   const s = state;
   renderHeader(s);
@@ -1508,6 +1561,7 @@ function render() {
   renderDataSource(s);
   renderOptions();
   renderBook();
+  renderSignals();
 }
 setInterval(() => {
   setText($('#clock'), new Date().toLocaleTimeString('en-US', {timeZone:'America/New_York', hour:'2-digit', minute:'2-digit', second:'2-digit'}) + ' ET');

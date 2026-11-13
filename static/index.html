@@ -100,6 +100,7 @@
 
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button class="active" role="tab" aria-selected="false" aria-controls="overview" data-tab="overview">Overview</button>
+    <button role="tab" aria-selected="false" aria-controls="signals" data-tab="signals">Signals <span id="signals-count">0</span></button>
     <button role="tab" aria-selected="false" aria-controls="brief" data-tab="brief">Brief</button>
     <button role="tab" aria-selected="false" aria-controls="options" data-tab="options">Options</button>
     <button role="tab" aria-selected="false" aria-controls="book" data-tab="book">Order book</button>
@@ -116,6 +117,7 @@
   <section id="overview" role="tabpanel" tabindex="0" class="tab-content">
     <div class="section-title"><h2 data-tip="Ideas are alternatives, not a combined portfolio. Sizes use available paper capital; verify your actual buying power. Ranking is a heuristic, not a win probability.">Current ideas</h2><span id="next-scan" class="muted">Waiting for your session</span></div>
     <div id="live-strip" class="live-strip" aria-label="Live prices"></div>
+    <div id="signals-top"></div>
     <div id="session-banner" class="session-banner" hidden></div>
     <div id="alerts" role="status"></div>
     <div id="ideas" class="ideas"></div>
@@ -182,6 +184,18 @@
       <details id="change-history"><summary>Recent scan changes</summary><div id="change-events"></div></details>
       <p id="change-summary" class="hint" role="status"></p>
     </section>
+  </section>
+
+  <!-- Signals -->
+  <section id="signals" role="tabpanel" tabindex="0" class="tab-content" hidden>
+    <div class="section-title"><h2 data-tip="Mechanical events on five-minute bars: levels crossed, ranges broken, bursts of volume. Each one is checked against the same event in that stock's own past, so it can say how often the move kept going. Covers your watchlist plus today's most traded large stocks. Most events turn out no different from an ordinary day, and with this many tests about one in twenty looks significant by luck.">Signals</h2><span id="signals-status" class="muted"></span></div>
+    <p id="signals-error" class="form-error" role="alert"></p>
+    <div class="research-controls">
+      <button id="signals-review" type="button" class="action-button" data-tip="Sends today's signals and their history, the index moves, this session's news and research, and recent option flags to your AI provider, and asks what they add up to. It can only mark a signal as worth acting on if the rules already produced a sized plan for it.">Review with AI <span class="cost">1 AI request</span></button>
+      <label class="check"><input id="signals-leaning" type="checkbox"> Only signals with a historical lean</label>
+    </div>
+    <div id="signals-review-result"></div>
+    <div id="signals-list"></div>
   </section>
 
   <!-- Brief -->

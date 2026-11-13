@@ -185,7 +185,7 @@ class Schwab(Bridge):
 
     def fetch(self, path, params):
         handler = {'/clock': self.clock, '/history': self.bars_data, '/quotes': self.quotes_data,
-                   '/chain': self.chain_data}.get(path)
+                   '/chain': self.chain_data, '/movers': self.movers_data}.get(path)
         if not handler:
             raise DataError(f'Schwab: {path} needs the local market-data bridge.')
         return handler(params)
@@ -233,6 +233,10 @@ class Schwab(Bridge):
                                   'tradeTime': number(q.get('tradeTime')), 'prevClose': number(q.get('closePrice')),
                                   'changePct': number(q.get('netPercentChange'))}
         return {'quotes': quotes}
+
+    def movers_data(self, params):
+        data = self.api('/marketdata/v1/movers/' + params['index'], {'sort': params.get('sort')}, 30)
+        return {'movers': [{'symbol': r.get('symbol'), 'last': number(r.get('lastPrice'))} for r in data.get('screeners') or []]}
 
     def chain_data(self, params):
         data = self.api('/marketdata/v1/chains', {

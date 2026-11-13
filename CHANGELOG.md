@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Signals with base rates, and an AI read of them
+- **Signals tab.** 29 kinds of mechanical event on five-minute bars (prior-day levels, opening
+  range, VWAP, gaps and fills, 20-day extremes, late highs and lows, outsized bars, volume bursts,
+  round numbers, streaks). The same detector runs over about 180 past sessions of the same stock,
+  so each alert states how often the move continued, next to an ordinary day from that time
+  (`signals.py`). Most come out ordinary and are labelled so.
+- **Finds its own tickers.** Scans the watchlist plus the day's most traded large stocks.
+- **Sized plans.** A fresh signal whose history leans up gets entry, stop, target and a share count
+  inside the session's budget and risk settings. Downward leans are stated without a plan.
+- **AI review.** One request sends the signals, their history, index moves, session news and
+  research, and option flags to the selected model and asks what they add up to (`analyst.py`).
+  It may mark a signal worth acting on only where the rules already produced a plan.
+
 ### Brief, live prices, replay, flag history, what-if
 - **Brief tab.** Watchlist moves against the last close and over five sessions, plus the option
   contracts flagged in the previous session. No AI requests.

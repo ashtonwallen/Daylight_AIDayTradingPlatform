@@ -32,6 +32,7 @@ load_env()
 import extras
 import optionsview
 import schwabdata
+import signals
 from schwabdata import live_provider
 from market import Alpaca, DataError, CHART_RANGES, now, stamp, age, describe_et
 from research import research_cycle, long_term_cycle, analyze_headline
@@ -43,6 +44,7 @@ from idea_review import analyze_proposal, conclude
 from position_engine import PositionsMixin
 from session_chat import ChatMixin
 from market import chart_spec
+from analyst import SignalAnalystMixin
 from chart_analysis import ChartAnalysisMixin
 from positions import holdings
 import ai
@@ -106,10 +108,11 @@ def validate(data):
     return config
 
 
-class Engine(PositionsMixin, ChatMixin, ChartAnalysisMixin):
+class Engine(PositionsMixin, ChatMixin, ChartAnalysisMixin, SignalAnalystMixin):
     def __init__(self, db_path=None):
         self.lock = threading.RLock()
         self.wake = threading.Event()
+        self.signal_engine = signals.Signals()
         self.db_path = Path(db_path or ROOT / 'data' / 'journal.sqlite3')
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         with self.db() as db:
@@ -154,6 +157,8 @@ class Engine(PositionsMixin, ChatMixin, ChartAnalysisMixin):
         self.chat_messages = []
         self.chart_analyzing = False
         self.chart_analysis = {}
+        self.signal_reviewing = False
+        self.signal_review = {}
         self.last_research = 0
         self.last_scan = None
         self.next_scan = None
@@ -344,6 +349,23 @@ class Engine(PositionsMixin, ChatMixin, ChartAnalysisMixin):
             provider = self.provider
         return provider or live_provider()
 
+    def signal_scan(self):
+        """Signals for the watchlist plus today's most active stocks, each with a sized plan where history leans."""
+        provider = self.data_provider()
+        with self.lock:
+            watch = [s for s in self.config['symbols'] if s != 'BTC/USD']
+            config = copy.deepcopy(self.config)
+            available, risk_left, _ = self.allowances()
+        try:
+            extra = [s for s in provider.active_symbols() if s not in watch][:8] if hasattr(provider, 'active_symbols') else []
+        except DataError:
+            extra = []
+        result = dict(self.signal_engine.scan(provider, watch + extra))
+        result['watchlist'], result['found'] = watch, extra
+        result['events'] = [dict(e, plan=signals.plan(e, e.get('last'), e.get('day_range'), config, available, risk_left))
+                            for e in result['events']]
+        return result
+
     def live_symbols(self):
         with self.lock:
             symbols = list(self.config['symbols'])
@@ -431,6 +453,7 @@ class Engine(PositionsMixin, ChatMixin, ChartAnalysisMixin):
                 'long_research': self.long_reports, 'long_researching': self.long_researching,
                 'chat': {'running': self.chat_running, 'messages': self.chat_messages},
                 'chart_analysis': self.chart_analysis, 'chart_analyzing': self.chart_analyzing,
+                'signal_review': self.signal_review, 'signal_reviewing': self.signal_reviewing,
                 'news_analysis': self.news_analysis, 'news_analyzing': self.news_analyzing,
                 'researching': self.researching, 'calls_used': self.calls_used,
                 'debug': {'events': list(self.activity), 'workers': self.workers},
@@ -1181,6 +1204,11 @@ def handler_for(engine):
                         result['rows'] = extras.with_history(db, result['rows'])
                         result['repeats'] = extras.repeats(db)
                     self.send(200, result)
+                    return
+                elif self.path == '/api/signals/review':
+                    engine.request_signal_review()
+                elif self.path == '/api/signals':
+                    self.send(200, engine.signal_scan())
                     return
                 elif self.path == '/api/live':
                     self.send(200, extras.live(engine.data_provider(), engine.live_symbols()))

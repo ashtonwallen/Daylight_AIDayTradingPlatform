@@ -157,6 +157,21 @@ class Bridge(Alpaca):
                     'change_pct': q.get('changePct'), 'time': from_ms(q.get('tradeTime') or q.get('quoteTime'))}
                 for s, q in found.items()}
 
+    def five_minute_bars(self, symbol, start):
+        """Five-minute bars since a moment, oldest first, with epoch-millisecond times."""
+        return self.fetch('/history', {'symbol': symbol, 'frequency': '5m', 'start': stamp(start.astimezone(UTC))}).get('bars', [])
+
+    def active_symbols(self):
+        """Today's most traded large stocks, for finding names beyond the watchlist."""
+        found = []
+        for index in ('$SPX', '$COMPX'):
+            try:
+                rows = self.fetch('/movers', {'index': index, 'sort': 'VOLUME'}).get('movers', [])
+            except DataError:
+                continue
+            found += [m['symbol'] for m in rows if m.get('symbol') and (m.get('last') or 0) >= 5 and re.fullmatch('[A-Z]{1,5}', m['symbol'])]
+        return list(dict.fromkeys(found))
+
     def order_book(self, symbol):
         return self.fetch('/book', {'symbol': symbol, 'depth': 25})
 
